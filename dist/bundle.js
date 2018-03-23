@@ -75,18 +75,6 @@ class App {
     }
   }
 
-  // extractImage(num) {
-  //   let room = this.rooms[num];
-  //   if (!room) return;
-  //
-  //   let filename = 'monkey2.001';
-  //   if (!this.files[filename]) return;
-  //
-  //   let stream = new BufferStream(this.files[filename]);
-  //
-  //   // let offset = this.roomOffsets[num];
-  // }
-
   getBundleStream() {
     let filename = 'monkey2.001';
     if (!this.files[filename]) return;
@@ -94,16 +82,44 @@ class App {
     return stream;
   }
 
-  parseRoomImage(num) {
-    let stream = this.getBundleStream();
-    let blocks = this.roomBlockOffsets[num];
-    console.log(blocks);
-    if (!blocks) return;
-    stream.seek(blocks['RMIM'].offset + 8);
+  readBlockHead(stream) {
     let type = stream.getUint32LE();
+    let size = stream.getUint32();
     let name = this.getBlockTypeName(type);
-    console.log(name);
-    // console.log(blocks.RMHD);
+    return { name: name, type: type, size: size };
+  }
+
+  parseRoomImage(num) {
+    let room = this.rooms[num];
+    if (!room) return;
+
+    let stream = this.getBundleStream();
+    if (!stream) return;
+
+    let blocks = this.roomBlockOffsets[num];
+    if (!blocks) return;
+
+    stream.seek(blocks['RMIM'].offset + 8);
+
+    let block = this.readBlockHead(stream);
+    let numzbuf = stream.getUint16LE();
+
+    console.log(block.name, block.size, numzbuf);
+
+    if (block.name == 'RMIH') {
+      let block = this.readBlockHead(stream);
+
+      if (block.name == 'IM00') {
+        let block = this.readBlockHead(stream);
+
+        if (block.name == 'SMAP') {
+          for (var i = 0; i < room.width / 8; i++) {
+            let offs = stream.getUint32LE();
+            console.log(i, offs);
+          }
+        }
+      }
+    }
   }
 
   parseRoom(num) {
@@ -112,39 +128,32 @@ class App {
 
     stream.seek(offset);
 
-    let type = stream.getUint32LE();
-    let size = stream.getUint32();
-    let name = this.getBlockTypeName(type);
+    let block = this.readBlockHead(stream);
 
-    // console.log(name);
-
-    let end = offset + size;
+    let end = offset + block.size;
 
     let blocks = {};
 
     while (stream.offset < end) {
-      let type = stream.getUint32LE();
-      let size = stream.getUint32();
+      let block = this.readBlockHead(stream);
 
-      let name = this.getBlockTypeName(type);
-
-      let block = {
-        name: name,
-        size: size,
+      let info = {
+        name: block.name,
+        size: block.size,
         offset: stream.offset - 8
       };
 
-      if (blocks[name]) {
-        if (blocks[name] instanceof Array) {
-          blocks[name].push(block);
+      if (blocks[block.name]) {
+        if (blocks[block.name] instanceof Array) {
+          blocks[block.name].push(info);
         } else {
-          blocks[name] = [blocks[name], block];
+          blocks[block.name] = [blocks[block.name], info];
         }
       } else {
-        blocks[name] = block;
+        blocks[block.name] = info;
       }
 
-      stream.getBytes(size - 8);
+      stream.getBytes(block.size - 8);
     }
 
     this.roomBlockOffsets[num] = blocks;
@@ -162,24 +171,21 @@ class App {
   }
 
   parseBundle(num) {
-    // if (!this.files[filename]) return;
-    // let stream = new BufferStream(this.files[filename]);
     let stream = this.getBundleStream();
 
-    let type = stream.getUint32LE();
-    let size = stream.getUint32();
-    let name = this.getBlockTypeName(type);
+    // let type = stream.getUint32LE();
+    // let size = stream.getUint32();
+    // let name = this.getBlockTypeName(type);
+    let block = this.readBlockHead(stream);
 
-    console.log(name, size);
+    console.log(block);
 
     let offset = 8;
 
-    if (name == 'LECF') {
-      type = stream.getUint32LE();
-      size = stream.getUint32();
-      name = this.getBlockTypeName(type);
+    if (block.name == 'LECF') {
+      let block = this.readBlockHead(stream);
 
-      if (name == 'LOFF') {
+      if (block.name == 'LOFF') {
         let numrooms = stream.getUint8();
         for (var i = 0; i < numrooms; i++) {
           let room = stream.getUint8();
