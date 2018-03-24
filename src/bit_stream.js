@@ -14,27 +14,26 @@ class BitStream {
     this.bit = 1;
   }
 
-  read(length=0) {
-    // console.log(this.byte.toString(2));
-    let value = 0;
+  read(length) {
     if (length) {
-      let s = '';
-      for (var i = 0; i < length; i++) {
-        s += this.read();
-        // value = value + (this.read() << (length-i));
+      let limit = Math.pow(2, length - 1);
+      let value = 0;
+      let bit = 1;
+      while (bit <= limit) {
+        value = (this.read() ? value | bit : value);
+        bit = bit << 1;
       }
-      // console.log(s);
-      // value = value & (Math.pow(2, length) - 1);
+      return value;
     }
     else {
-      value = (this.byte & this.bit ? 1 : 0);
+      let value = (this.byte & this.bit ? 1 : 0);
       if (this.bit == 128) {
         this.next();
       } else {
-        this.bit = this.bit * 2;
+        this.bit = this.bit << 1;
       }
+      return value;
     }
-    return value;
   }
 }
 

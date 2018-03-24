@@ -23,8 +23,6 @@ class App {
     canvas.width = 320;
     canvas.height = 200;
     canvas.style.backgroundColor = 'lightgray';
-    // canvas.style.transformOrigin = '0 0';
-    // canvas.style.transform = 'scale(4)';
     document.body.appendChild(canvas);
 
     this.canvas = canvas;
@@ -99,62 +97,98 @@ class App {
     return { name: name, type: type, size: size };
   }
 
-  drawPixel(pixels, x, y, r, g, b) {
-    let index = (y * 320 + x) * 4;
-    pixels[index+0] = r;
-    pixels[index+1] = g;
-    pixels[index+2] = b;
-    pixels[index+3] = 255;
-    // console.log('pixel', x, y, r, g, b);
-  }
+  // makeRGBA(palette, index) {
+  //   let offs = index * 3;
+  //   let rgba = palette[offs] << 24 | palette[offs + 2] << 16 | palette[offs + 3] << 8 | 255;
+  //   return rgba;
+  // }
 
-  decompressStrip(stream, palette) {
-    console.log('decoding...');
+  decompressStrip(stream, width, height) {
+    console.log('decoding...', width, height);
 
-    let ctx = this.canvas.getContext('2d');
-    let imageData = ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-    let pixels = imageData.data;
-    let x = 0, y = 0;
+    let pixels = new Uint8Array(width * height);
+    let offset = 0;
 
     let code = stream.getUint8();
     let shift = code % 10;
-    let mask = 0xff >> (8 - shift);
+    // let mask = 0xff >> (8 - shift);
+
+    let color = stream.getUint8();
 
     let bitstream = new BitStream(stream);
 
     if (code >= 0x40 && code <= 0x44) {
       console.log('Method B Horizontal', code, shift);
+      console.log('Color', color, '[', this.palette[color*3], this.palette[color*3+1], this.palette[color*3+2], ']');
 
-      let color = stream.getUint8();
-      console.log(color.toString(2));
-      console.log('color', color, palette[color*3], palette[color*3+1], palette[color*3+2]);
-      stream.backup();
-      // bitstream.read(8);
+      //scab-isl
+      //01010100[4]01101110[3]11011010[2]00110100[1]01001101[0]
+
       let s = '';
-      for (var i = 0; i < 8; i++) {
-        s += bitstream.read();
+      for (var i = 0; i < 4; i++) {
+        let b = bitstream.read(8);
+        console.log(b.toString(2).padStart(8, '0'));
       }
-      console.log(s);
 
-      // console.log('bits', bits.toString(2));
-
-      this.drawPixel(pixels, x, y, palette[color*3], palette[color*3+1], palette[color*3+2]);
-
-      let bit = 0;
-
-      if (bit) {
-        if (bit) {
-          // color
-        } else { // read next palette index
-
-        }
-      }
-      else { // draw pixel
-        // this.drawPixel(pixels, x, y, palette[color*3], palette[color*3+1], palette[color*3+2]);
-      }
+      // let bit;
+      // // let bits = stream.getUint8();
+      //
+      // while (offset < 8) {
+      //   pixels[offset++] = color;
+      //
+      //   bit = bitstream.read();
+      //
+      //   if (bit) {
+      //     bit = bitstream.read();
+      //     if (bit) { // command
+      //       // color
+      //       let c = bitstream.read(3);
+      //       console.log('command', c.toString(2));
+      //       if (c >= 0 && c <= 3) {
+      //         color += 4 - c;
+      //       }
+      //       else if (c == 4) {
+      //         let run = bitstream.read(8);
+      //         console.log('run', run);
+      //         for (var i = 0; i < run; i++) {
+      //           pixels[offset++] = color;
+      //         }
+      //       }
+      //       else if (c >= 5 && c <= 7) {
+      //         color -= c - 4;
+      //       }
+      //     } else { // read a palette index
+      //       color = bitstream.read(shift);
+      //       console.log('new index', color);
+      //     }
+      //   }
+      //   else { // draw pixel
+      //     console.log('draw', color);
+      //     pixels[offset++] = color;
+      //   }
+      // }
     }
 
-    ctx.putImageData(imageData, 0, 0);
+    return pixels;
+  }
+
+  drawStrip(pixels, pos, width, height) {
+    console.log('drawStrip', pos, width, height);
+    let ctx = this.canvas.getContext('2d');
+    let imageData = ctx.getImageData(pos, 0, width, height);
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        let index = y * width + x;
+        let color = pixels[index];
+        imageData.data[index * 4 + 0] = this.palette[color * 3 + 0];
+        imageData.data[index * 4 + 1] = this.palette[color * 3 + 1];
+        imageData.data[index * 4 + 2] = this.palette[color * 3 + 2];
+        imageData.data[index * 4 + 3] = 255;
+      }
+    }
+    ctx.putImageData(imageData, pos, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this.canvas, 0, 0, 320*4, 200*4);
   }
 
   parseRoom(num) {
@@ -190,8 +224,6 @@ class App {
       }
 
       stream.getBytes(block.size - 8);
-
-      // console.log(block.name, block.size);
     }
 
     console.log(blocks);
@@ -221,7 +253,8 @@ class App {
         let b = stream.getUint8();
         room.palette.push(r, g, b);
       }
-      // console.log(room.palette.length);
+
+      this.palette = room.palette;
     }
 
     // Decode background image
@@ -244,7 +277,9 @@ class App {
               let offs = stream.getUint32LE();
               offsets.push(offs);
             }
-            this.decompressStrip(stream, room.palette);
+            console.log('offsets', offsets[0], offsets[1]);
+            let pixels = this.decompressStrip(stream, 8, room.height);
+            this.drawStrip(pixels, 0, 8, room.height);
           }
         }
       }
