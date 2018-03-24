@@ -1,0 +1,10 @@
+.palette {
+  display: grid;
+  grid-template-columns: repeat(16, 12px);
+}
+.swatch {
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+}
