@@ -3,35 +3,41 @@ class BitStream {
   constructor(stream) {
     this.stream = stream;
     this.offset = 0;
-    this.bit = 1;
-    this.byte = this.stream.getUint8();
-    this.stream.backup();
+    this.cl = 0;
   }
 
   next() {
     this.byte = this.stream.getUint8();
-    this.offset++;
-    this.bit = 1;
+    this.bit = this.byte & 1;
+    this.cl = 8;
+  }
+
+  shift() {
+    if (this.cl > 1) {
+      this.byte >>= 1;
+      this.bit = this.byte & 1;
+      this.cl--;
+    } else {
+      this.next();
+    }
   }
 
   read(length) {
+    if (this.cl == 0) {
+      // console.log('cl==0');
+      this.next();
+    }
+
     if (length) {
-      let limit = Math.pow(2, length - 1);
       let value = 0;
-      let bit = 1;
-      while (bit <= limit) {
-        value = (this.read() ? value | bit : value);
-        bit = bit << 1;
+      for (var i = 0; i < length; i++) {
+        value |= (this.bit << i);
+        this.shift();
       }
       return value;
-    }
-    else {
-      let value = (this.byte & this.bit ? 1 : 0);
-      if (this.bit == 128) {
-        this.next();
-      } else {
-        this.bit = this.bit << 1;
-      }
+    } else {
+      let value = this.bit;
+      this.shift();
       return value;
     }
   }

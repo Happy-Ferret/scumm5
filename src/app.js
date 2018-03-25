@@ -19,13 +19,14 @@ class App {
     this.roomBlockOffsets = [];
     this.rooms = [];
 
-    let canvas = document.createElement('canvas');
-    canvas.width = 320;
-    canvas.height = 200;
-    canvas.style.backgroundColor = 'lightgray';
-    document.body.appendChild(canvas);
+    this.offscreen = document.createElement('canvas');
+    this.offscreen.width = 320;
+    this.offscreen.height = 200;
 
-    this.canvas = canvas;
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = 640;
+    this.canvas.height = 400;
+    document.body.appendChild(this.canvas);
 
     this.initEventListeners();
   }
@@ -97,15 +98,7 @@ class App {
     return { name: name, type: type, size: size };
   }
 
-  // makeRGBA(palette, index) {
-  //   let offs = index * 3;
-  //   let rgba = palette[offs] << 24 | palette[offs + 2] << 16 | palette[offs + 3] << 8 | 255;
-  //   return rgba;
-  // }
-
   decompressStrip(stream, width, height) {
-    console.log('decoding...', width, height);
-
     let pixels = new Uint8Array(width * height);
     let offset = 0;
 
@@ -115,80 +108,76 @@ class App {
 
     let color = stream.getUint8();
 
-    let bitstream = new BitStream(stream);
+    let bits = new BitStream(stream);
+
+    console.log(code);
 
     if (code >= 0x40 && code <= 0x44) {
-      console.log('Method B Horizontal', code, shift);
-      console.log('Color', color, '[', this.palette[color*3], this.palette[color*3+1], this.palette[color*3+2], ']');
+      // console.log('Method B Horizontal', code, shift);
+      // console.log('Color', color, '[', this.palette[color*3], this.palette[color*3+1], this.palette[color*3+2], ']');
 
       //scab-isl
       //01010100[4]01101110[3]11011010[2]00110100[1]01001101[0]
 
-      let s = '';
-      for (var i = 0; i < 4; i++) {
-        let b = bitstream.read(8);
-        console.log(b.toString(2).padStart(8, '0'));
-      }
-
-      // let bit;
-      // // let bits = stream.getUint8();
-      //
-      // while (offset < 8) {
-      //   pixels[offset++] = color;
-      //
-      //   bit = bitstream.read();
-      //
-      //   if (bit) {
-      //     bit = bitstream.read();
-      //     if (bit) { // command
-      //       // color
-      //       let c = bitstream.read(3);
-      //       console.log('command', c.toString(2));
-      //       if (c >= 0 && c <= 3) {
-      //         color += 4 - c;
-      //       }
-      //       else if (c == 4) {
-      //         let run = bitstream.read(8);
-      //         console.log('run', run);
-      //         for (var i = 0; i < run; i++) {
-      //           pixels[offset++] = color;
-      //         }
-      //       }
-      //       else if (c >= 5 && c <= 7) {
-      //         color -= c - 4;
-      //       }
-      //     } else { // read a palette index
-      //       color = bitstream.read(shift);
-      //       console.log('new index', color);
-      //     }
-      //   }
-      //   else { // draw pixel
-      //     console.log('draw', color);
-      //     pixels[offset++] = color;
-      //   }
+      // for (var i = 0; i < 1; i++) {
+      //   let b = bits.read(16);
+      //   console.log(b.toString(2).padStart(16, '0'));
       // }
+
+      while (offset < width * height) {
+        pixels[offset++] = color;
+
+        if (bits.read()) {
+          if (bits.read()) {
+            // command
+            let c = bits.read(3);
+
+            if (c >= 0 && c <= 3) {
+              color += 4 - c;
+            }
+            else if (c == 4) {
+              // run
+              let run = bits.read(8);
+              for (var i = 0; i < run; i++) {
+                pixels[offset++] = color;
+              }
+            }
+            else if (c >= 5 && c <= 7) {
+              color -= c - 4;
+            }
+          } else {
+            // read a palette index
+            color = bits.read(shift);
+            // console.log('new index', color);
+          }
+        }
+      }
     }
 
     return pixels;
   }
 
   drawStrip(pixels, pos, width, height) {
-    console.log('drawStrip', pos, width, height);
-    let ctx = this.canvas.getContext('2d');
+    // console.log('drawStrip', pos, width, height);
+    let ctx = this.offscreen.getContext('2d');
     let imageData = ctx.getImageData(pos, 0, width, height);
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < width; x++) {
         let index = y * width + x;
         let color = pixels[index];
-        imageData.data[index * 4 + 0] = this.palette[color * 3 + 0];
-        imageData.data[index * 4 + 1] = this.palette[color * 3 + 1];
-        imageData.data[index * 4 + 2] = this.palette[color * 3 + 2];
-        imageData.data[index * 4 + 3] = 255;
+        if (color) {
+          imageData.data[index * 4 + 0] = this.palette[color * 3 + 0];
+          imageData.data[index * 4 + 1] = this.palette[color * 3 + 1];
+          imageData.data[index * 4 + 2] = this.palette[color * 3 + 2];
+          imageData.data[index * 4 + 3] = 255;
+        }
       }
     }
     ctx.putImageData(imageData, pos, 0);
+
+    ctx = this.canvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(this.canvas, 0, 0, 320*4, 200*4);
+    ctx.drawImage(this.offscreen, 0, 0, 320*2, 200*2);
   }
 
   parseRoom(num) {
@@ -226,7 +215,7 @@ class App {
       stream.getBytes(block.size - 8);
     }
 
-    console.log(blocks);
+    // console.log(blocks);
 
     this.roomBlockOffsets[num] = blocks;
 
@@ -237,7 +226,7 @@ class App {
     let height = stream.getUint16LE();
     let numObjects = stream.getUint16LE();
 
-    console.log(this.roomNames[num], width, height, numObjects);
+    // console.log(this.roomNames[num], width, height, numObjects);
 
     let room = new Room({ width: width, height: height, numObjects: numObjects });
 
@@ -271,15 +260,19 @@ class App {
         if (block.name == 'IM00') {
           let SMAPoffs = stream.offset;
           let block = this.readBlockHead(stream);
+
           if (block.name == 'SMAP') {
             let offsets = [];
             for (var i = 0; i < room.width / 8; i++) {
               let offs = stream.getUint32LE();
               offsets.push(offs);
             }
-            console.log('offsets', offsets[0], offsets[1]);
-            let pixels = this.decompressStrip(stream, 8, room.height);
-            this.drawStrip(pixels, 0, 8, room.height);
+            // console.log('offsets', offsets[0], offsets[1]);
+            for (var i = 0; i < room.width / 8; i++) {
+              stream.seek(SMAPoffs + offsets[i]);
+              let pixels = this.decompressStrip(stream, 8, room.height);
+              this.drawStrip(pixels, i*8, 8, room.height);
+            }
           }
         }
       }
