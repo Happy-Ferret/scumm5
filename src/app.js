@@ -38,17 +38,10 @@ class App {
   createPaletteElement() {
     let palette = this.palette;
 
-    let paletteEl = this.paletteEl; //document.body.querySelector('#palette');
+    let paletteEl = this.paletteEl;
     while(paletteEl.firstChild) paletteEl.removeChild(paletteEl.firstChild);
-    // paletteEl.innerHTML = '';
-    // if (paletteEl)
-    //   document.body.removeChild(paletteEl);
 
     if (palette) {
-      // paletteEl = document.createElement('div');
-      // paletteEl.id = 'palette';
-      // paletteEl.classList.add('palette');
-
       for (var i = 0; i < 256; i++) {
         let r = palette[i*3];
         let g = palette[i*3 + 1];
@@ -59,8 +52,6 @@ class App {
         swatch.title = i + ':' + 'rgb('+r+','+g+','+b+')';
         paletteEl.appendChild(swatch);
       }
-
-      // document.body.appendChild(paletteEl);
     }
   }
 

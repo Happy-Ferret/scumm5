@@ -15,8 +15,6 @@ body, html {
 .palette-container {
   position: fixed;
   left: 32px;
-  /* right: 32px; */
-  /* top: 32px; */
   bottom: 32px;
   background-color: white;
 }
@@ -46,4 +44,13 @@ body, html {
 
 .room-image >canvas {
   display: block;
+}
+
+.objects {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.object {
+  background-color: white;
 }

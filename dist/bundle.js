@@ -40,17 +40,10 @@ class App {
   createPaletteElement() {
     let palette = this.palette;
 
-    let paletteEl = this.paletteEl; //document.body.querySelector('#palette');
+    let paletteEl = this.paletteEl;
     while (paletteEl.firstChild) paletteEl.removeChild(paletteEl.firstChild);
-    // paletteEl.innerHTML = '';
-    // if (paletteEl)
-    //   document.body.removeChild(paletteEl);
 
     if (palette) {
-      // paletteEl = document.createElement('div');
-      // paletteEl.id = 'palette';
-      // paletteEl.classList.add('palette');
-
       for (var i = 0; i < 256; i++) {
         let r = palette[i * 3];
         let g = palette[i * 3 + 1];
@@ -61,8 +54,6 @@ class App {
         swatch.title = i + ':' + 'rgb(' + r + ',' + g + ',' + b + ')';
         paletteEl.appendChild(swatch);
       }
-
-      // document.body.appendChild(paletteEl);
     }
   }
 
@@ -391,7 +382,6 @@ const Scumm = require('./scumm');
 
 class Resource {
   constructor() {
-    // this.index = [];
     this.rooms = [];
     this.roomNames = [];
   }
@@ -604,8 +594,9 @@ class Resource {
     let base = stream.offset;
 
     let name = this.parseBlockName(stream);
-    if (name !== 'SMAP') return;
     let size = stream.getUint32();
+
+    if (name !== 'SMAP') return;
 
     // console.log('smap', width, height);
 
@@ -647,7 +638,7 @@ class Resource {
     let width = stream.getUint16LE();
     let height = stream.getUint16LE();
 
-    let ob = new Scumm.Object({
+    let ob = {
       id: id,
       imnn: imnn,
       zpnn: zpnn,
@@ -656,15 +647,54 @@ class Resource {
       y: y,
       width: width,
       height: height
-    });
+    };
 
     if (imnn) {
       let name = this.parseBlockName(stream);
       if (name.substring(0, 2) == 'IM') {
-        // console.log(id, name);
         stream.advance(4);
         ob.bitmap = this.parseSmap(stream, width, height);
       }
+    }
+
+    return ob;
+  }
+
+  parseOBCD(stream) {
+    let name = this.parseBlockName(stream);
+    let size = stream.getUint32();
+    // console.log(name);
+
+    let id = stream.getUint16LE();
+    let x = stream.getUint8();
+    let y = stream.getUint8();
+    let width = stream.getUint8();
+    let height = stream.getUint8();
+    let flags = stream.getUint8();
+    let parent = stream.getUint8();
+    let walk_x = stream.getUint16LE();
+    let walk_y = stream.getUint16LE();
+    let actor_dir = stream.getUint8();
+
+    let ob = {
+      id: id,
+      flags: flags,
+      x: x,
+      y: y,
+      width: width,
+      height: height
+    };
+
+    name = this.parseBlockName(stream);
+    size = stream.getUint32();
+    stream.advance(size - 8);
+
+    name = this.parseBlockName(stream);
+    size = stream.getUint32();
+
+    ob.name = '';
+    for (let b = stream.getUint8(); b !== 0; b = stream.getUint8()) {
+      ob.name += String.fromCharCode(b);
     }
 
     return ob;
@@ -683,14 +713,13 @@ class Resource {
     let numObjects;
     let palette;
     let bitmap;
-    let objects = [];
+    let obIMs = [];
+    let obCDs = [];
 
     while (stream.offset < end) {
       let name = this.parseBlockName(stream);
       let size = stream.getUint32();
       let jump = stream.offset + size - 8;
-
-      // console.log(stream.offset, name, size);
 
       if (name == 'RMHD') {
         width = stream.getUint16LE();
@@ -709,11 +738,13 @@ class Resource {
         }
       } else if (name == 'OBIM') {
         let ob = this.parseOBIM(stream);
-        if (ob) objects.push(ob);
-        // console.log('obim');
+        obIMs[ob.id] = ob;
+      } else if (name == 'OBCD') {
+        let ob = this.parseOBCD(stream);
+        obCDs[ob.id] = ob;
       } else {
-          // stream.getBytes(size - 8);
-        }
+        // stream.getBytes(size - 8);
+      }
       stream.seek(jump);
     }
 
@@ -723,12 +754,12 @@ class Resource {
       width: width,
       height: height,
       numObjects: numObjects,
-      objects: objects,
+      obIMs: obIMs,
+      obCDs: obCDs,
       bitmap: bitmap,
       palette: palette
     });
 
-    // this.rooms[num] = room;
     return room;
   }
 
