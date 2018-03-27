@@ -13,10 +13,15 @@ class BufferStream {
   seek(offset=0) {
     this.offset = offset;
   }
-  
-  backup() {
-    if (this.offset > 0)
-      this.offset--;
+
+  advance(count=1) {
+    this.offset += count;
+    if (this.offset > this.buffer.byteLength-1) this.offset = this.buffer.byteLength-1;
+  }
+
+  backup(count=1) {
+    this.offset -= count;
+    if (this.offset < 0) this.offset = 0;
   }
 
   getUint8(offset) {

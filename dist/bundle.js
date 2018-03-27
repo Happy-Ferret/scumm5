@@ -1,35 +1,32 @@
 (function(){function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}return e})()({1:[function(require,module,exports){
+(function (global){
+const Resource = require('./resource');
+
 const Scumm = require('./scumm');
 const Bitmap = require('./bitmap');
-const Room = require('./room');
-const BufferStream = require('./buffer_stream');
-const BitStream = require('./bit_stream');
 
 const INDEX_FILE = 'monkey2.000';
 const BUNDLE_FILE = 'monkey2.001';
+
 // const INDEX_FILE = 'mi2demo.000';
 // const BUNDLE_FILE = 'mi2demo.001';
 
 class App {
   constructor() {
-    console.log('App');
+    console.log('init');
 
     this.files = [];
-    this.roomNames = [];
-    this.roomOffsets = [];
-    this.roomBlockOffsets = [];
-    this.rooms = [];
+
+    this.resource = new Resource();
 
     this.offscreen = document.createElement('canvas');
     this.offscreen.width = 320;
     this.offscreen.height = 200;
 
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = 640;
-    this.canvas.height = 400;
-    document.body.appendChild(this.canvas);
-
-    this.initEventListeners();
+    window.addEventListener('DOMContentLoaded', () => {
+      this.createElements();
+      this.initEventListeners();
+    });
   }
 
   decode(buffer, enc = 0) {
@@ -40,292 +37,104 @@ class App {
     return temp.buffer;
   }
 
-  getBlockTypeName(uint32) {
-    return String.fromCharCode(uint32 & 0xff, uint32 >> 8 & 0xff, uint32 >> 16 & 0xff, uint32 >> 24 & 0xff);
-  }
+  createPaletteElement() {
+    let palette = this.palette;
 
-  parseIndex() {
-    if (!this.files[INDEX_FILE]) return;
-    let stream = new BufferStream(this.files[INDEX_FILE]);
+    let paletteEl = this.paletteEl; //document.body.querySelector('#palette');
+    while (paletteEl.firstChild) paletteEl.removeChild(paletteEl.firstChild);
+    // paletteEl.innerHTML = '';
+    // if (paletteEl)
+    //   document.body.removeChild(paletteEl);
 
-    while (stream.offset < stream.length) {
-      let type = stream.getUint32LE();
-      let size = stream.getUint32();
-      let name = this.getBlockTypeName(type);
-
-      if (name == 'RNAM') {
-        // Room names table
-        while (1) {
-          let roomno = stream.getUint8();
-          if (roomno == 0) break;
-
-          let bytes = stream.getBytes(9);
-          this.roomNames[roomno] = bytes.reduce((accumulator, currentValue) => {
-            return accumulator + (currentValue != 0xff ? String.fromCharCode(currentValue ^ 0xff) : '');
-          }, '');
-        }
-        console.log(this.roomNames);
-        // }
-        // else if (name == 'DROO') {
-        //   let numitems = stream.getUint16LE();
-        //   let roomNos = stream.getBytes(, numitems);
-        //
-        //   let roomOffsets = [];
-        //   for (var i = 0; i < numitems; i++) {
-        //     let offs = stream.getUint32LE();
-        //     roomOffsets[i] = offs;
-        //   }
-      } else {
-        stream.getBytes(size - 8);
-      }
-    }
-  }
-
-  getBundleStream() {
-    let filename = BUNDLE_FILE;
-    if (!this.files[filename]) return;
-    let stream = new BufferStream(this.files[filename]);
-    return stream;
-  }
-
-  readBlockHead(stream) {
-    let type = stream.getUint32LE();
-    let size = stream.getUint32();
-    let name = this.getBlockTypeName(type);
-    return { name: name, type: type, size: size };
-  }
-
-  decompressStrip(stream, width, height) {
-    let pixels = new Uint8Array(width * height);
-    let offset = 0;
-
-    let code = stream.getUint8();
-    let shift = code % 10;
-    // let mask = 0xff >> (8 - shift);
-
-    let color = stream.getUint8();
-
-    let bits = new BitStream(stream);
-
-    console.log(code);
-
-    if (code >= 0x40 && code <= 0x44) {
-      // console.log('Method B Horizontal', code, shift);
-      // console.log('Color', color, '[', this.palette[color*3], this.palette[color*3+1], this.palette[color*3+2], ']');
-
-      //scab-isl
-      //01010100[4]01101110[3]11011010[2]00110100[1]01001101[0]
-
-      // for (var i = 0; i < 1; i++) {
-      //   let b = bits.read(16);
-      //   console.log(b.toString(2).padStart(16, '0'));
-      // }
-
-      while (offset < width * height) {
-        pixels[offset++] = color;
-
-        if (bits.read()) {
-          if (bits.read()) {
-            // command
-            let c = bits.read(3);
-
-            if (c >= 0 && c <= 3) {
-              color += 4 - c;
-            } else if (c == 4) {
-              // run
-              let run = bits.read(8);
-              for (var i = 0; i < run; i++) {
-                pixels[offset++] = color;
-              }
-            } else if (c >= 5 && c <= 7) {
-              color -= c - 4;
-            }
-          } else {
-            // read a palette index
-            color = bits.read(shift);
-            // console.log('new index', color);
-          }
-        }
-      }
-    }
-
-    return pixels;
-  }
-
-  drawStrip(pixels, pos, width, height) {
-    // console.log('drawStrip', pos, width, height);
-    let ctx = this.offscreen.getContext('2d');
-    let imageData = ctx.getImageData(pos, 0, width, height);
-    for (var y = 0; y < height; y++) {
-      for (var x = 0; x < width; x++) {
-        let index = y * width + x;
-        let color = pixels[index];
-        if (color) {
-          imageData.data[index * 4 + 0] = this.palette[color * 3 + 0];
-          imageData.data[index * 4 + 1] = this.palette[color * 3 + 1];
-          imageData.data[index * 4 + 2] = this.palette[color * 3 + 2];
-          imageData.data[index * 4 + 3] = 255;
-        }
-      }
-    }
-    ctx.putImageData(imageData, pos, 0);
-
-    ctx = this.canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(this.offscreen, 0, 0, 320 * 2, 200 * 2);
-  }
-
-  parseRoom(num) {
-    console.log('Parsing room', num, '...');
-    let stream = this.getBundleStream();
-    let offset = this.roomOffsets[num];
-
-    stream.seek(offset);
-
-    // Read and store the block offsets RMHD, CLUT etc
-
-    let block = this.readBlockHead(stream);
-    let end = offset + block.size;
-    let blocks = {};
-
-    while (stream.offset < end) {
-      let block = this.readBlockHead(stream);
-
-      let info = {
-        name: block.name,
-        size: block.size,
-        offset: stream.offset - 8
-      };
-
-      if (blocks[block.name]) {
-        if (blocks[block.name] instanceof Array) {
-          blocks[block.name].push(info);
-        } else {
-          blocks[block.name] = [blocks[block.name], info];
-        }
-      } else {
-        blocks[block.name] = info;
-      }
-
-      stream.getBytes(block.size - 8);
-    }
-
-    // console.log(blocks);
-
-    this.roomBlockOffsets[num] = blocks;
-
-    // Read header data - width, height etc
-
-    stream.seek(blocks['RMHD'].offset + 8);
-    let width = stream.getUint16LE();
-    let height = stream.getUint16LE();
-    let numObjects = stream.getUint16LE();
-
-    // console.log(this.roomNames[num], width, height, numObjects);
-
-    let room = new Room({ width: width, height: height, numObjects: numObjects });
-
-    // Read palette entries
-
-    if (blocks['CLUT']) {
-      stream.seek(blocks['CLUT'].offset + 8);
-
-      room.palette = [];
-      for (var i = 0; i < 256; i++) {
-        let r = stream.getUint8();
-        let g = stream.getUint8();
-        let b = stream.getUint8();
-        room.palette.push(r, g, b);
-      }
-
-      this.palette = room.palette;
-    }
-
-    // Decode background image
-
-    if (blocks['RMIM']) {
-      stream.seek(blocks['RMIM'].offset + 8);
-
-      let block = this.readBlockHead(stream);
-      let numzbuf = stream.getUint16LE();
-
-      if (block.name == 'RMIH') {
-        let block = this.readBlockHead(stream);
-
-        if (block.name == 'IM00') {
-          let SMAPoffs = stream.offset;
-          let block = this.readBlockHead(stream);
-
-          if (block.name == 'SMAP') {
-            let offsets = [];
-            for (var i = 0; i < room.width / 8; i++) {
-              let offs = stream.getUint32LE();
-              offsets.push(offs);
-            }
-            // console.log('offsets', offsets[0], offsets[1]);
-            for (var i = 0; i < room.width / 8; i++) {
-              stream.seek(SMAPoffs + offsets[i]);
-              let pixels = this.decompressStrip(stream, 8, room.height);
-              this.drawStrip(pixels, i * 8, 8, room.height);
-            }
-          }
-        }
-      }
-    }
-
-    this.rooms[num] = room;
-  }
-
-  parseBundle(num) {
-    let stream = this.getBundleStream();
-    let block = this.readBlockHead(stream);
-
-    let offset = 8;
-
-    if (block.name == 'LECF') {
-      let block = this.readBlockHead(stream);
-
-      if (block.name == 'LOFF') {
-        let numrooms = stream.getUint8();
-        for (var i = 0; i < numrooms; i++) {
-          let room = stream.getUint8();
-          let offs = stream.getUint32LE();
-          this.roomOffsets[room] = offs;
-        }
-      }
-    }
-  }
-
-  createPaletteElement(num) {
-    let room = this.rooms[num];
-
-    if (room && room.palette) {
-      let paletteEl = document.createElement('div');
-      paletteEl.classList.add('palette');
+    if (palette) {
+      // paletteEl = document.createElement('div');
+      // paletteEl.id = 'palette';
+      // paletteEl.classList.add('palette');
 
       for (var i = 0; i < 256; i++) {
-        let r = room.palette[i * 3];
-        let g = room.palette[i * 3 + 1];
-        let b = room.palette[i * 3 + 2];
+        let r = palette[i * 3];
+        let g = palette[i * 3 + 1];
+        let b = palette[i * 3 + 2];
         let swatch = document.createElement('div');
-        swatch.classList.add('swatch');
+        swatch.classList.add('palette-swatch');
         swatch.style.backgroundColor = 'rgb(' + r + ',' + g + ',' + b + ')';
         swatch.title = i + ':' + 'rgb(' + r + ',' + g + ',' + b + ')';
         paletteEl.appendChild(swatch);
       }
 
-      document.body.appendChild(paletteEl);
+      // document.body.appendChild(paletteEl);
+    }
+  }
+
+  resizeOffscreenCanvas(width, height) {
+    this.offscreen.width = width;
+    this.offscreen.height = height;
+  }
+
+  createRoomImageElement() {
+    if (!this.room) return;
+    let room = this.room;
+
+    let width = room.width;
+    let height = room.height;
+
+    this.resizeOffscreenCanvas(width, height);
+
+    let ctx = this.offscreen.getContext('2d');
+    ctx.clearRect(0, 0, this.offscreen.width, this.offscreen.height);
+
+    if (room.bitmap) {
+      let imageData = ctx.getImageData(0, 0, width, height);
+
+      for (var i = 0; i < room.bitmap.length; i++) {
+        let index = room.bitmap[i];
+        imageData.data[i * 4 + 0] = this.palette[index * 3 + 0];
+        imageData.data[i * 4 + 1] = this.palette[index * 3 + 1];
+        imageData.data[i * 4 + 2] = this.palette[index * 3 + 2];
+        imageData.data[i * 4 + 3] = 255;
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    let canvas = this.canvas;
+    canvas.width = width;
+    canvas.height = height;
+
+    ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this.offscreen, 0, 0, this.offscreen.width, this.offscreen.height);
+    // this.canvasContainerEl.appendChild(canvas);
+  }
+
+  createRoomObjects() {}
+
+  setRoom(num) {
+    let room = this.resource.getRoom(num);
+    if (room) {
+      this.room = room;
+      this.roomno = num;
+      this.palette = room.palette;
+
+      this.title.innerHTML = 'Room ' + room.id + ' ' + room.name + ' ' + room.width + 'x' + room.height;
+
+      this.createPaletteElement();
+      this.createRoomImageElement();
+      this.createRoomObjects();
     }
   }
 
   parseFiles() {
     if (this.files[INDEX_FILE]) {
-      this.parseIndex();
+      // this.parseIndex();
+      this.resource.addIndex(this.files[INDEX_FILE]);
     }
     if (this.files[BUNDLE_FILE]) {
-      this.parseBundle();
-      this.parseRoom(2);
-      this.createPaletteElement(2);
+      this.resource.addBundle(this.files[BUNDLE_FILE]);
+      this.setRoom(19);
+      // this.parseBundle();
+      // this.setRoom(4);
     }
   }
 
@@ -339,7 +148,7 @@ class App {
     this.filesToLoad--;
 
     if (this.filesToLoad == 0) {
-      console.log('Load done.');
+      console.log('done');
       this.parseFiles();
     }
   }
@@ -348,7 +157,6 @@ class App {
     var reader = new FileReader();
     var filename = file.name.toLowerCase();
     reader.onload = event => {
-      // console.log(event.target);
       this.files[filename] = event.target.result;
       this.onFileLoaded(filename);
     };
@@ -378,6 +186,14 @@ class App {
     event.preventDefault();
   }
 
+  onKeyDown(event) {
+    if (event.key == 'ArrowRight' && !event.repeat) {
+      this.setRoom(this.roomno + 1);
+    } else if (event.key == 'ArrowLeft' && !event.repeat) {
+      this.setRoom(this.roomno - 1);
+    }
+  }
+
   handleEvent(event) {
     if (event.type == 'drop') {
       this.onDrop(event);
@@ -385,21 +201,57 @@ class App {
       this.onDragOver(event);
     } else if (event.type == 'dragenter') {
       this.onDragEnter(event);
+    } else if (event.type == 'keydown') {
+      this.onKeyDown(event);
     }
+  }
+
+  createElements() {
+    let el = document.createElement('div');
+    el.classList.add('container');
+    el.classList.add('room-container');
+
+    this.title = document.createElement('div');
+    this.title.classList.add('title');
+    this.title.innerHTML = 'title';
+    el.appendChild(this.title);
+
+    this.canvasContainerEl = document.createElement('div');
+    this.canvasContainerEl.classList.add('room-image');
+    this.canvas = document.createElement('canvas');
+    this.canvasContainerEl.appendChild(this.canvas);
+
+    el.appendChild(this.canvasContainerEl);
+
+    document.body.appendChild(el);
+
+    let containerEl = document.createElement('div');
+    containerEl.classList.add('container');
+    containerEl.classList.add('palette-container');
+
+    this.paletteEl = document.createElement('div');
+    this.paletteEl.classList.add('palette-swatches');
+    containerEl.appendChild(this.paletteEl);
+
+    document.body.appendChild(containerEl);
   }
 
   initEventListeners() {
     window.addEventListener('drop', this, false);
     window.addEventListener('dragenter', this, false);
     window.addEventListener('dragover', this, false);
+
+    window.addEventListener('keydown', this, false);
+    window.addEventListener('keyup', this, false);
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  let app = new App();
-});
+module.exports = App;
+global.App = App;
 
-},{"./bit_stream":2,"./bitmap":3,"./buffer_stream":4,"./room":5,"./scumm":6}],2:[function(require,module,exports){
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+
+},{"./bitmap":3,"./resource":5,"./scumm":6}],2:[function(require,module,exports){
 
 class BitStream {
   constructor(stream) {
@@ -426,7 +278,6 @@ class BitStream {
 
   read(length) {
     if (this.cl == 0) {
-      // console.log('cl==0');
       this.next();
     }
 
@@ -438,7 +289,7 @@ class BitStream {
       }
       return value;
     } else {
-      let value = this.bit;
+      let value = this.bit ? 1 : 0;
       this.shift();
       return value;
     }
@@ -476,8 +327,14 @@ class BufferStream {
     this.offset = offset;
   }
 
-  backup() {
-    if (this.offset > 0) this.offset--;
+  advance(count = 1) {
+    this.offset += count;
+    if (this.offset > this.buffer.byteLength - 1) this.offset = this.buffer.byteLength - 1;
+  }
+
+  backup(count = 1) {
+    this.offset -= count;
+    if (this.offset < 0) this.offset = 0;
   }
 
   getUint8(offset) {
@@ -528,25 +385,435 @@ class BufferStream {
 module.exports = BufferStream;
 
 },{}],5:[function(require,module,exports){
-const Bitmap = require('./bitmap');
+const BufferStream = require('./buffer_stream');
+const BitStream = require('./bit_stream');
+const Scumm = require('./scumm');
+
+class Resource {
+  constructor() {
+    // this.index = [];
+    this.rooms = [];
+    this.roomNames = [];
+  }
+
+  addIndex(buffer) {
+    this.parseIndex(buffer);
+  }
+
+  addBundle(buffer) {
+    this.parseBundle(buffer);
+  }
+
+  getRoom(num) {
+    return this.parseRoom(num);
+  }
+
+  getBlockTypeName(uint32) {
+    return String.fromCharCode(uint32 & 0xff, uint32 >> 8 & 0xff, uint32 >> 16 & 0xff, uint32 >> 24 & 0xff);
+  }
+
+  parseBlockName(stream) {
+    let type = stream.getUint32LE();
+    return this.getBlockTypeName(type);
+  }
+
+  parseBlockHeader(stream) {
+    let type = stream.getUint32LE();
+    let size = stream.getUint32();
+    let name = this.getBlockTypeName(type);
+    return { type: type, size: size, name: name };
+  }
+
+  parseIndex(buffer) {
+    // if (!this.index) return;
+    console.log('parseIndex');
+    let stream = new BufferStream(buffer);
+
+    while (stream.offset < stream.length) {
+      let name = this.parseBlockName(stream);
+      let size = stream.getUint32();
+
+      if (name == 'RNAM') {
+        // Room names table
+        while (1) {
+          let roomno = stream.getUint8();
+          if (roomno == 0) break;
+          let bytes = stream.getBytes(9);
+          // console.log(bytes);
+          this.roomNames[roomno] = bytes.reduce((accumulator, currentValue) => {
+            return accumulator + (currentValue != 0xff ? String.fromCharCode(currentValue ^ 0xff) : '');
+          }, '');
+          // console.log(this.roomNames[roomno]);
+        }
+        // console.log(this.roomNames);
+        // }
+        // else if (name == 'DROO') {
+        //   let numitems = stream.getUint16LE();
+        //   let roomNos = stream.getBytes(, numitems);
+        //
+        //   let roomOffsets = [];
+        //   for (var i = 0; i < numitems; i++) {
+        //     let offs = stream.getUint32LE();
+        //     roomOffsets[i] = offs;
+        //   }
+      } else {
+        stream.getBytes(size - 8);
+      }
+    }
+  }
+
+  // getBundleStream() {
+  //   let filename = BUNDLE_FILE;
+  //   if (!this.files[filename]) return;
+  //   let stream = new BufferStream(this.files[filename]);
+  //   return stream;
+  // }
+
+  decompress1(bits, shift, width, height) {
+    let pixels = new Uint8Array(width * height);
+    let offset = 0;
+
+    // let color = bits.read(shift);
+    let color = bits.read(8);
+
+    let inc = -1;
+
+    while (offset < width * height) {
+      pixels[offset++] = color;
+      if (bits.read()) {
+        if (!bits.read()) {
+          color = bits.read(shift);
+          inc = -1;
+          // color = bits.read(shift);
+          // inc = -1;
+        } else {
+          if (!bits.read()) {
+            color += inc;
+          } else {
+            inc = -inc;
+            color += inc;
+          }
+          // if (bits.read()) inc = -inc;
+          // color += inc;
+        }
+      }
+    }
+
+    return pixels;
+  }
+
+  decompress2(bits, shift, width, height) {
+    let pixels = new Uint8Array(width * height);
+    let offset = 0;
+
+    // let color = bits.read(shift);
+    let color = bits.read(8);
+    let skip = false;
+
+    while (offset < width * height) {
+      if (!skip) {
+        pixels[offset++] = color;
+        skip = false;
+      }
+
+      if (bits.read()) {
+        if (bits.read()) {
+          // adjust current palette index
+          let c = bits.read(3);
+          let incm = c - 4;
+          if (incm) {
+            color += incm;
+          } else {
+            // console.log('run');
+            let run = bits.read(8);
+            for (var i = 0; i < run; i++) {
+              pixels[offset++] = color;
+            }
+            skip = true;
+          }
+        } else {
+          // read a new palette index
+          color = bits.read(shift);
+        }
+      }
+    }
+    return pixels;
+  }
+
+  //scab-isl 01010100.01101110.11011010.00110100.01001101
+
+  decompressStrip(stream, width, height) {
+    let code = stream.getUint8();
+    let shift = code % 10;
+
+    let bits = new BitStream(stream);
+    let pixels;
+    let orientation = 0;
+
+    if (code == 0x01) {
+      // raw horizontal
+      pixels = new Uint8Array(width * height);
+      for (var i = 0; i < pixels.length; i++) {
+        pixels[i] = stream.getUint8();
+      }
+    } else if (code >= 0x0e && code <= 0x12) {
+      // method 1 vertical
+      orientation = 1;
+      pixels = this.decompress1(bits, shift, width, height);
+    } else if (code >= 0x18 && code <= 0x1c) {
+      // method 1 horizontal
+      pixels = this.decompress1(bits, shift, width, height);
+    } else if (code >= 0x22 && code <= 0x26) {
+      // method 1 vertical transp
+      orientation = 1;
+      pixels = this.decompress1(bits, shift, width, height);
+    } else if (code >= 0x2c && code <= 0x30) {
+      // method 1 horizontal transp
+      pixels = this.decompress1(bits, shift, width, height);
+    } else if (code >= 0x40 && code <= 0x44) {
+      // method 2 horizontal
+      pixels = this.decompress2(bits, shift, width, height);
+    } else if (code >= 0x54 && code <= 0x58) {
+      // method 2 horizontal transp
+      pixels = this.decompress2(bits, shift, width, height);
+    } else if (code >= 0x68 && code <= 0x6c) {
+      // method 2 horizontal transp
+      pixels = this.decompress2(bits, shift, width, height);
+    } else if (code >= 0x7c && code <= 0x80) {
+      // method 2 horizontal
+      pixels = this.decompress2(bits, shift, width, height);
+    } else {
+      console.log('unknown', code);
+    }
+
+    if (orientation) {
+      // vertical
+      let temp = new Uint8Array(pixels.length);
+      for (var i = 0, index = 0; i < pixels.length; i++) {
+        temp[index] = pixels[i];
+        index += 8;
+        if (index >= height * 8) index = (i / height >> 0) + 1;
+      }
+      pixels = temp;
+    }
+
+    return pixels;
+  }
+
+  parseSmap(stream, width, height) {
+    let base = stream.offset;
+
+    let name = this.parseBlockName(stream);
+    if (name !== 'SMAP') return;
+    let size = stream.getUint32();
+
+    // console.log('smap', width, height);
+
+    let offsets = [];
+
+    for (var i = 0; i < width / 8; i++) offsets.push(stream.getUint32LE());
+
+    let bitmap = new Uint8Array(width * height);
+
+    for (var i = 0; i < offsets.length; i++) {
+      stream.seek(base + offsets[i]);
+      let pixels = this.decompressStrip(stream, 8, height);
+      if (pixels) {
+        for (var j = 0, x = 0, y = 0; j < pixels.length; j++) {
+          bitmap[x + i * 8 + y * width] = pixels[j];
+          y = x == 7 ? y + 1 : y;
+          x = x == 7 ? 0 : x + 1;
+        }
+      } else {
+        console.log(i, offsets.length);
+      }
+    }
+
+    return bitmap;
+  }
+
+  parseOBIM(stream) {
+    let name = this.parseBlockName(stream);
+    if (name !== 'IMHD') return;
+    let size = stream.getUint32();
+
+    let id = stream.getUint16LE();
+    let imnn = stream.getUint16LE();
+    let zpnn = stream.getUint16LE();
+    let flags = stream.getUint8();
+    stream.advance();
+    let x = stream.getUint16LE();
+    let y = stream.getUint16LE();
+    let width = stream.getUint16LE();
+    let height = stream.getUint16LE();
+
+    let ob = new Scumm.Object({
+      id: id,
+      imnn: imnn,
+      zpnn: zpnn,
+      flags: flags,
+      x: x,
+      y: y,
+      width: width,
+      height: height
+    });
+
+    if (imnn) {
+      let name = this.parseBlockName(stream);
+      if (name.substring(0, 2) == 'IM') {
+        // console.log(id, name);
+        stream.advance(4);
+        ob.bitmap = this.parseSmap(stream, width, height);
+      }
+    }
+
+    return ob;
+  }
+
+  parseRoom(num) {
+    let block = this.rooms[num];
+    if (!block) return;
+
+    let stream = new BufferStream(block.buffer);
+
+    let end = block.length;
+
+    let width;
+    let height;
+    let numObjects;
+    let palette;
+    let bitmap;
+    let objects = [];
+
+    while (stream.offset < end) {
+      let name = this.parseBlockName(stream);
+      let size = stream.getUint32();
+      let jump = stream.offset + size - 8;
+
+      // console.log(stream.offset, name, size);
+
+      if (name == 'RMHD') {
+        width = stream.getUint16LE();
+        height = stream.getUint16LE();
+        numObjects = stream.getUint16LE();
+      } else if (name == 'RMIM') {
+        stream.advance(18);
+        bitmap = this.parseSmap(stream, width, height);
+      } else if (name == 'CLUT') {
+        palette = [];
+        for (var i = 0; i < 256; i++) {
+          let r = stream.getUint8();
+          let g = stream.getUint8();
+          let b = stream.getUint8();
+          palette.push(r, g, b);
+        }
+      } else if (name == 'OBIM') {
+        let ob = this.parseOBIM(stream);
+        if (ob) objects.push(ob);
+        // console.log('obim');
+      } else {
+          // stream.getBytes(size - 8);
+        }
+      stream.seek(jump);
+    }
+
+    let room = new Scumm.Room({
+      id: num,
+      name: this.roomNames[num],
+      width: width,
+      height: height,
+      numObjects: numObjects,
+      objects: objects,
+      bitmap: bitmap,
+      palette: palette
+    });
+
+    // this.rooms[num] = room;
+    return room;
+  }
+
+  parseBundle(buffer) {
+    console.log('parseBundle');
+
+    let stream = new BufferStream(buffer);
+
+    let name = this.parseBlockName(stream);
+    let size = stream.getUint32();
+
+    if (name != 'LECF') return;
+
+    name = this.parseBlockName(stream);
+    size = stream.getUint32();
+
+    if (name == 'LOFF') {
+      this.numrooms = stream.getUint8();
+
+      let offsets = [];
+
+      for (var i = 0; i < this.numrooms; i++) {
+        let id = stream.getUint8();
+        let offs = stream.getUint32LE();
+        offsets[id] = offs;
+      }
+
+      for (var i = 0; i < offsets.length; i++) {
+        let offs = offsets[i];
+        if (offs != undefined) {
+          stream.seek(offs);
+          let name = this.parseBlockName(stream);
+          let size = stream.getUint32();
+          this.rooms[i] = stream.getBytes(size - 8);
+        }
+      }
+    }
+  }
+
+}
+
+module.exports = Resource;
+
+},{"./bit_stream":2,"./buffer_stream":4,"./scumm":6}],6:[function(require,module,exports){
+
+var Scumm = {
+  Object: require('./object'),
+  Room: require('./room')
+};
+
+module.exports = Scumm;
+
+},{"./object":7,"./room":8}],7:[function(require,module,exports){
+
+class Object {
+  constructor(params) {
+    this.id = params.id;
+    this.imnn = params.imnn;
+    this.zpnn = params.zpnn;
+    this.flags = params.flags;
+    this.x = params.x;
+    this.y = params.y;
+    this.width = params.width;
+    this.height = params.height;
+  }
+}
+
+module.exports = Object;
+
+},{}],8:[function(require,module,exports){
 
 class Room {
   constructor(params) {
+    this.id = params.id;
+    this.name = params.name;
     this.width = params.width;
     this.height = params.height;
     this.numObjects = params.numObjects;
+    this.objects = params.objects;
+    this.palette = params.palette;
+    this.bitmap = params.bitmap;
   }
 }
 
 module.exports = Room;
-
-},{"./bitmap":3}],6:[function(require,module,exports){
-
-class Scumm {
-  constructor() {}
-}
-
-module.exports = Scumm;
 
 },{}]},{},[1])
 

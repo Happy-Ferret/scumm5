@@ -24,7 +24,6 @@ class BitStream {
 
   read(length) {
     if (this.cl == 0) {
-      // console.log('cl==0');
       this.next();
     }
 
@@ -36,7 +35,7 @@ class BitStream {
       }
       return value;
     } else {
-      let value = this.bit;
+      let value = this.bit ? 1 : 0;
       this.shift();
       return value;
     }
