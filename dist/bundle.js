@@ -100,7 +100,58 @@ class App {
     // this.canvasContainerEl.appendChild(canvas);
   }
 
-  createRoomObjects() {}
+  createCanvasFromBitmap(bitmap, width, height) {
+    let canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    if (bitmap) {
+      let ctx = canvas.getContext('2d');
+      let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      for (var i = 0; i < bitmap.length; i++) {
+        let x = i % width;
+        let y = i / width >> 0;
+        let index = (y * width + x) * 4;
+        let color = bitmap[i];
+        imageData.data[index + 0] = this.palette[color * 3 + 0];
+        imageData.data[index + 1] = this.palette[color * 3 + 1];
+        imageData.data[index + 2] = this.palette[color * 3 + 2];
+        imageData.data[index + 3] = 255;
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+    return canvas;
+  }
+
+  createRoomObjects() {
+    let objects = this.room.getObjects();
+    let contentEl = this.objectsEl;
+    while (contentEl.firstChild) contentEl.removeChild(contentEl.firstChild);
+
+    for (var i = 0; i < objects.length; i++) {
+      let ob = objects[i];
+
+      if (ob.bitmap) {
+        let el = document.createElement('div');
+        el.classList.add('object');
+
+        let imageEl = document.createElement('div');
+        imageEl.classList.add('object-image');
+
+        let canvas = this.createCanvasFromBitmap(ob.bitmap, ob.width, ob.height);
+        imageEl.appendChild(canvas);
+
+        let titleEl = document.createElement('div');
+        titleEl.classList.add('object-title');
+        // titleEl.appendChild(document.createTextNode(ob.name));
+        titleEl.innerHTML = ob.name != '' ? ob.name : ob.id;
+
+        el.appendChild(imageEl);
+        el.appendChild(titleEl);
+
+        contentEl.appendChild(el);
+      }
+    }
+  }
 
   setRoom(num) {
     let room = this.resource.getRoom(num);
@@ -112,6 +163,8 @@ class App {
       this.createPaletteElement();
       this.createRoomImageElement();
       this.createRoomObjects();
+
+      console.log(num);
     }
   }
 
@@ -122,7 +175,7 @@ class App {
     }
     if (this.files[BUNDLE_FILE]) {
       this.resource.addBundle(this.files[BUNDLE_FILE]);
-      this.setRoom(19);
+      this.setRoom(29);
       // this.parseBundle();
       // this.setRoom(4);
     }
@@ -662,6 +715,7 @@ class Resource {
         ob.bitmap = this.parseSmap(stream, ob.width, ob.height);
       }
     }
+    // console.log(ob);
 
     return ob;
   }
@@ -815,9 +869,10 @@ module.exports = Scumm;
 
 },{"./object":7,"./room":8}],7:[function(require,module,exports){
 
-class Object {
+class RoomObject {
   constructor(params) {
     this.id = params.id;
+    this.name = params.name;
     this.imnn = params.imnn;
     this.zpnn = params.zpnn;
     this.flags = params.flags;
@@ -825,12 +880,14 @@ class Object {
     this.y = params.y;
     this.width = params.width;
     this.height = params.height;
+    this.bitmap = params.bitmap;
   }
 }
 
-module.exports = Object;
+module.exports = RoomObject;
 
 },{}],8:[function(require,module,exports){
+const RoomObject = require('./object');
 
 class Room {
   constructor(params) {
@@ -839,20 +896,42 @@ class Room {
     this.width = params.width;
     this.height = params.height;
     this.numObjects = params.numObjects;
-    this.objects = params.objects;
+    // this.objects = params.objects;
+    this.obIMs = params.obIMs;
+    this.obCDs = params.obCDs;
     this.palette = params.palette;
     this.bitmap = params.bitmap;
+  }
+
+  getObjects() {
+    let objects = [];
+    for (var i = 0; i < this.obIMs.length; i++) {
+      let obim = this.obIMs[i];
+      if (obim) {
+        let obcd = this.obCDs[obim.id];
+        // console.log(obcd);
+        let ob = new RoomObject({
+          id: obim.id,
+          name: obcd.name,
+          x: obim.x,
+          y: obim.y,
+          width: obim.width,
+          height: obim.height,
+          bitmap: obim.bitmap || null
+        });
+        objects.push(ob);
+      }
+    }
+    return objects;
   }
 }
 
 module.exports = Room;
 
-},{}],9:[function(require,module,exports){
+},{"./object":7}],9:[function(require,module,exports){
 
 class Container {
   constructor(params) {
-    // title, content, x, y
-
     let el = document.createElement('div');
     el.classList.add('container');
 
@@ -896,11 +975,9 @@ class Container {
     let y = event.movementY;
     this.el.style.left = this.el.offsetLeft + x + 'px';
     this.el.style.top = this.el.offsetTop + y + 'px';
-    // console.log(x, y);
   }
 
   onMouseDown(event) {
-    console.log('down');
     window.addEventListener('mousemove', this);
     window.addEventListener('mouseup', this);
     window.addEventListener('blur', this);

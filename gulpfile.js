@@ -36,7 +36,7 @@ function bundle_js(bundler) {
     .pipe(gulp.dest('./dist'))
 }
 
-gulp.task('watchify', function () {
+gulp.task('watch', function () {
   // var args = merge(watchify.args, { debug: true })
   var bundler = watchify(browserify('./src/app.js', { debug: true })).transform(babelify, { /* opts */ })
   bundle_js(bundler)

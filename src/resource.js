@@ -274,6 +274,7 @@ class Resource {
         ob.bitmap = this.parseSmap(stream, ob.width, ob.height);
       }
     }
+    // console.log(ob);
 
     return ob;
   }

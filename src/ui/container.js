@@ -1,8 +1,6 @@
 
 class Container {
   constructor(params) {
-    // title, content, x, y
-
     let el = document.createElement('div');
     el.classList.add('container');
 
@@ -46,11 +44,9 @@ class Container {
     let y = event.movementY;
     this.el.style.left = (this.el.offsetLeft + x) + 'px';
     this.el.style.top = (this.el.offsetTop + y) + 'px';
-    // console.log(x, y);
   }
 
   onMouseDown(event) {
-    console.log('down');
     window.addEventListener('mousemove', this);
     window.addEventListener('mouseup', this);
     window.addEventListener('blur', this);
