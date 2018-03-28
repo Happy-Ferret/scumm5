@@ -1,6 +1,7 @@
 (function(){function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}return e})()({1:[function(require,module,exports){
 (function (global){
 const Resource = require('./resource');
+const Container = require('./ui/container');
 
 const Scumm = require('./scumm');
 const Bitmap = require('./bitmap');
@@ -108,8 +109,6 @@ class App {
       this.roomno = num;
       this.palette = room.palette;
 
-      this.title.innerHTML = 'Room ' + room.id + ' ' + room.name + ' ' + room.width + 'x' + room.height;
-
       this.createPaletteElement();
       this.createRoomImageElement();
       this.createRoomObjects();
@@ -197,34 +196,50 @@ class App {
     }
   }
 
+  // createWindow(title, content, x, y) {
+  //   let el = document.createElement('div');
+  //   el.classList.add('container');
+  //
+  //   let titleEl = document.createElement('div');
+  //   titleEl.id = 'title';
+  //   titleEl.classList.add('title');
+  //   titleEl.appendChild(document.createTextNode(title));
+  //   el.appendChild(titleEl);
+  //
+  //   let contentEl = document.createElement('div');
+  //   contentEl.id = 'content';
+  //
+  //   contentEl.appendChild(content);
+  //
+  //   el.appendChild(contentEl);
+  //
+  //   el.style.left = x + 'px';
+  //   el.style.top = y + 'px';
+  //
+  //   return el;
+  // }
+
   createElements() {
-    let el = document.createElement('div');
-    el.classList.add('container');
-    el.classList.add('room-container');
-
-    this.title = document.createElement('div');
-    this.title.classList.add('title');
-    this.title.innerHTML = 'title';
-    el.appendChild(this.title);
-
     this.canvasContainerEl = document.createElement('div');
     this.canvasContainerEl.classList.add('room-image');
+
     this.canvas = document.createElement('canvas');
     this.canvasContainerEl.appendChild(this.canvas);
 
-    el.appendChild(this.canvasContainerEl);
-
-    document.body.appendChild(el);
-
-    let containerEl = document.createElement('div');
-    containerEl.classList.add('container');
-    containerEl.classList.add('palette-container');
+    this.imageContainer = new Container({ title: 'Background', content: this.canvasContainerEl, x: 32, y: 32 });
+    this.imageContainer.show();
 
     this.paletteEl = document.createElement('div');
     this.paletteEl.classList.add('palette-swatches');
-    containerEl.appendChild(this.paletteEl);
 
-    document.body.appendChild(containerEl);
+    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 256 });
+    this.paletteContainer.show();
+
+    this.objectsEl = document.createElement('div');
+    this.objectsEl.classList.add('objects');
+
+    this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32 });
+    this.objectsContainer.show();
   }
 
   initEventListeners() {
@@ -242,7 +257,7 @@ global.App = App;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./bitmap":3,"./resource":5,"./scumm":6}],2:[function(require,module,exports){
+},{"./bitmap":3,"./resource":5,"./scumm":6,"./ui/container":9}],2:[function(require,module,exports){
 
 class BitStream {
   constructor(stream) {
@@ -628,32 +643,23 @@ class Resource {
     if (name !== 'IMHD') return;
     let size = stream.getUint32();
 
-    let id = stream.getUint16LE();
-    let imnn = stream.getUint16LE();
-    let zpnn = stream.getUint16LE();
-    let flags = stream.getUint8();
+    let ob = {};
+
+    ob.id = stream.getUint16LE();
+    ob.imnn = stream.getUint16LE();
+    ob.zpnn = stream.getUint16LE();
+    ob.flags = stream.getUint8();
     stream.advance();
-    let x = stream.getUint16LE();
-    let y = stream.getUint16LE();
-    let width = stream.getUint16LE();
-    let height = stream.getUint16LE();
+    ob.x = stream.getUint16LE();
+    ob.y = stream.getUint16LE();
+    ob.width = stream.getUint16LE();
+    ob.height = stream.getUint16LE();
 
-    let ob = {
-      id: id,
-      imnn: imnn,
-      zpnn: zpnn,
-      flags: flags,
-      x: x,
-      y: y,
-      width: width,
-      height: height
-    };
-
-    if (imnn) {
+    if (ob.imnn) {
       let name = this.parseBlockName(stream);
       if (name.substring(0, 2) == 'IM') {
         stream.advance(4);
-        ob.bitmap = this.parseSmap(stream, width, height);
+        ob.bitmap = this.parseSmap(stream, ob.width, ob.height);
       }
     }
 
@@ -663,36 +669,31 @@ class Resource {
   parseOBCD(stream) {
     let name = this.parseBlockName(stream);
     let size = stream.getUint32();
-    // console.log(name);
 
-    let id = stream.getUint16LE();
-    let x = stream.getUint8();
-    let y = stream.getUint8();
-    let width = stream.getUint8();
-    let height = stream.getUint8();
-    let flags = stream.getUint8();
-    let parent = stream.getUint8();
-    let walk_x = stream.getUint16LE();
-    let walk_y = stream.getUint16LE();
-    let actor_dir = stream.getUint8();
+    let ob = {};
 
-    let ob = {
-      id: id,
-      flags: flags,
-      x: x,
-      y: y,
-      width: width,
-      height: height
-    };
+    ob.id = stream.getUint16LE();
+    ob.x = stream.getUint8();
+    ob.y = stream.getUint8();
+    ob.width = stream.getUint8();
+    ob.height = stream.getUint8();
+    ob.flags = stream.getUint8();
+    ob.parent = stream.getUint8();
+    ob.walk_x = stream.getUint16LE();
+    ob.walk_y = stream.getUint16LE();
+    ob.actor_dir = stream.getUint8();
 
     name = this.parseBlockName(stream);
     size = stream.getUint32();
     stream.advance(size - 8);
 
-    name = this.parseBlockName(stream);
-    size = stream.getUint32();
+    stream.advance(8);
+
+    // name = this.parseBlockName(stream);
+    // size = stream.getUint32();
 
     ob.name = '';
+
     for (let b = stream.getUint8(); b !== 0; b = stream.getUint8()) {
       ob.name += String.fromCharCode(b);
     }
@@ -845,6 +846,88 @@ class Room {
 }
 
 module.exports = Room;
+
+},{}],9:[function(require,module,exports){
+
+class Container {
+  constructor(params) {
+    // title, content, x, y
+
+    let el = document.createElement('div');
+    el.classList.add('container');
+
+    let titleEl = document.createElement('div');
+    titleEl.id = 'title';
+    titleEl.classList.add('title');
+    titleEl.appendChild(document.createTextNode(params.title));
+    el.appendChild(titleEl);
+
+    let contentEl = document.createElement('div');
+    contentEl.id = 'content';
+
+    contentEl.appendChild(params.content);
+
+    el.appendChild(contentEl);
+
+    el.style.left = params.x + 'px';
+    el.style.top = params.y + 'px';
+
+    this.el = el;
+
+    this.el.addEventListener('mousedown', this);
+  }
+
+  show() {
+    document.body.appendChild(this.el);
+  }
+
+  hide() {
+    document.body.removeChild(this.el);
+  }
+
+  cancelDrag() {
+    window.removeEventListener('mousemove', this);
+    window.removeEventListener('mouseup', this);
+    window.removeEventListener('blur', this);
+  }
+
+  onMouseMove(event) {
+    let x = event.movementX;
+    let y = event.movementY;
+    this.el.style.left = this.el.offsetLeft + x + 'px';
+    this.el.style.top = this.el.offsetTop + y + 'px';
+    // console.log(x, y);
+  }
+
+  onMouseDown(event) {
+    console.log('down');
+    window.addEventListener('mousemove', this);
+    window.addEventListener('mouseup', this);
+    window.addEventListener('blur', this);
+  }
+
+  onMouseUp(event) {
+    this.cancelDrag();
+  }
+
+  onBlur(event) {
+    this.cancelDrag();
+  }
+
+  handleEvent(event) {
+    if (event.type == 'mousedown') {
+      this.onMouseDown(event);
+    } else if (event.type == 'mouseup') {
+      this.onMouseUp(event);
+    } else if (event.type == 'mousemove') {
+      this.onMouseMove(event);
+    } else if (event.type == 'blur') {
+      this.onBlur(event);
+    }
+  }
+}
+
+module.exports = Container;
 
 },{}]},{},[1])
 

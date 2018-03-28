@@ -1,4 +1,5 @@
 const Resource = require('./resource');
+const Container = require('./ui/container');
 
 const Scumm = require('./scumm');
 const Bitmap = require('./bitmap');
@@ -108,8 +109,6 @@ class App {
       this.roomno = num;
       this.palette = room.palette;
 
-      this.title.innerHTML = 'Room ' + room.id + ' ' + room.name + ' ' + room.width + 'x' + room.height;
-
       this.createPaletteElement();
       this.createRoomImageElement();
       this.createRoomObjects();
@@ -201,34 +200,51 @@ class App {
     }
   }
 
+  // createWindow(title, content, x, y) {
+  //   let el = document.createElement('div');
+  //   el.classList.add('container');
+  //
+  //   let titleEl = document.createElement('div');
+  //   titleEl.id = 'title';
+  //   titleEl.classList.add('title');
+  //   titleEl.appendChild(document.createTextNode(title));
+  //   el.appendChild(titleEl);
+  //
+  //   let contentEl = document.createElement('div');
+  //   contentEl.id = 'content';
+  //
+  //   contentEl.appendChild(content);
+  //
+  //   el.appendChild(contentEl);
+  //
+  //   el.style.left = x + 'px';
+  //   el.style.top = y + 'px';
+  //
+  //   return el;
+  // }
+
   createElements() {
-    let el = document.createElement('div');
-    el.classList.add('container');
-    el.classList.add('room-container');
-
-    this.title = document.createElement('div');
-    this.title.classList.add('title');
-    this.title.innerHTML = 'title';
-    el.appendChild(this.title);
-
     this.canvasContainerEl = document.createElement('div');
     this.canvasContainerEl.classList.add('room-image');
+
     this.canvas = document.createElement('canvas');
     this.canvasContainerEl.appendChild(this.canvas);
 
-    el.appendChild(this.canvasContainerEl);
-
-    document.body.appendChild(el);
-
-    let containerEl = document.createElement('div');
-    containerEl.classList.add('container');
-    containerEl.classList.add('palette-container');
+    this.imageContainer = new Container({ title: 'Background', content: this.canvasContainerEl, x: 32, y: 32 });
+    this.imageContainer.show();
 
     this.paletteEl = document.createElement('div');
     this.paletteEl.classList.add('palette-swatches');
-    containerEl.appendChild(this.paletteEl);
 
-    document.body.appendChild(containerEl);
+    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 256 });
+    this.paletteContainer.show();
+
+    this.objectsEl = document.createElement('div');
+    this.objectsEl.classList.add('objects');
+
+    this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32 });
+    this.objectsContainer.show();
+
   }
 
   initEventListeners() {

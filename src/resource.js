@@ -255,32 +255,23 @@ class Resource {
     if (name !== 'IMHD') return;
     let size = stream.getUint32();
 
-    let id = stream.getUint16LE();
-    let imnn = stream.getUint16LE();
-    let zpnn = stream.getUint16LE();
-    let flags = stream.getUint8();
+    let ob = {};
+
+    ob.id = stream.getUint16LE();
+    ob.imnn = stream.getUint16LE();
+    ob.zpnn = stream.getUint16LE();
+    ob.flags = stream.getUint8();
     stream.advance();
-    let x = stream.getUint16LE();
-    let y = stream.getUint16LE();
-    let width = stream.getUint16LE();
-    let height = stream.getUint16LE();
+    ob.x = stream.getUint16LE();
+    ob.y = stream.getUint16LE();
+    ob.width = stream.getUint16LE();
+    ob.height = stream.getUint16LE();
 
-    let ob = {
-      id: id,
-      imnn: imnn,
-      zpnn: zpnn,
-      flags: flags,
-      x: x,
-      y: y,
-      width: width,
-      height: height
-    };
-
-    if (imnn) {
+    if (ob.imnn) {
       let name = this.parseBlockName(stream);
       if (name.substring(0, 2) == 'IM') {
         stream.advance(4);
-        ob.bitmap = this.parseSmap(stream, width, height);
+        ob.bitmap = this.parseSmap(stream, ob.width, ob.height);
       }
     }
 
@@ -290,36 +281,31 @@ class Resource {
   parseOBCD(stream) {
     let name = this.parseBlockName(stream);
     let size = stream.getUint32();
-    // console.log(name);
 
-    let id = stream.getUint16LE();
-    let x = stream.getUint8();
-    let y = stream.getUint8();
-    let width = stream.getUint8();
-    let height = stream.getUint8();
-    let flags = stream.getUint8();
-    let parent = stream.getUint8();
-    let walk_x = stream.getUint16LE();
-    let walk_y = stream.getUint16LE();
-    let actor_dir = stream.getUint8();
+    let ob = {};
 
-    let ob = {
-      id: id,
-      flags: flags,
-      x: x,
-      y: y,
-      width: width,
-      height: height
-    };
+    ob.id = stream.getUint16LE();
+    ob.x = stream.getUint8();
+    ob.y = stream.getUint8();
+    ob.width = stream.getUint8();
+    ob.height = stream.getUint8();
+    ob.flags = stream.getUint8();
+    ob.parent = stream.getUint8();
+    ob.walk_x = stream.getUint16LE();
+    ob.walk_y = stream.getUint16LE();
+    ob.actor_dir = stream.getUint8();
 
     name = this.parseBlockName(stream);
     size = stream.getUint32();
     stream.advance(size - 8);
 
-    name = this.parseBlockName(stream);
-    size = stream.getUint32();
+    stream.advance(8);
+
+    // name = this.parseBlockName(stream);
+    // size = stream.getUint32();
 
     ob.name = '';
+
     for (let b = stream.getUint8(); b !== 0; b = stream.getUint8()) {
       ob.name += String.fromCharCode(b);
     }
