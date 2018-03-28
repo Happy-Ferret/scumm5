@@ -143,7 +143,9 @@ class App {
         let titleEl = document.createElement('div');
         titleEl.classList.add('object-title');
         // titleEl.appendChild(document.createTextNode(ob.name));
-        titleEl.innerHTML = ob.name != '' ? ob.name : ob.id;
+        titleEl.innerHTML = ob.id;
+
+        el.title = ob.name;
 
         el.appendChild(imageEl);
         el.appendChild(titleEl);
@@ -164,7 +166,7 @@ class App {
       this.createRoomImageElement();
       this.createRoomObjects();
 
-      console.log(num);
+      // console.log(num);
     }
   }
 
