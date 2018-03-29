@@ -1,8 +1,9 @@
 (function(){function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}return e})()({1:[function(require,module,exports){
 (function (global){
-const Resource = require('./resource');
 const Container = require('./ui/container');
+const Workspace = require('./ui/workspace');
 
+const Resource = require('./resource');
 const Scumm = require('./scumm');
 const Bitmap = require('./bitmap');
 
@@ -23,6 +24,8 @@ class App {
     this.offscreen = document.createElement('canvas');
     this.offscreen.width = 320;
     this.offscreen.height = 200;
+
+    this.el = document.getElementById('workspace');
 
     window.addEventListener('DOMContentLoaded', () => {
       this.createElements();
@@ -52,15 +55,10 @@ class App {
         let swatch = document.createElement('div');
         swatch.classList.add('palette-swatch');
         swatch.style.backgroundColor = 'rgb(' + r + ',' + g + ',' + b + ')';
-        swatch.title = i + ':' + 'rgb(' + r + ',' + g + ',' + b + ')';
+        swatch.title = 'Index: ' + i + '\n' + 'RGB: ' + r + ', ' + g + ', ' + b;
         paletteEl.appendChild(swatch);
       }
     }
-  }
-
-  resizeOffscreenCanvas(width, height) {
-    this.offscreen.width = width;
-    this.offscreen.height = height;
   }
 
   createRoomImageElement() {
@@ -70,7 +68,9 @@ class App {
     let width = room.width;
     let height = room.height;
 
-    this.resizeOffscreenCanvas(width, height);
+    this.offscreen.width = width;
+    this.offscreen.height = height;
+    // this.resizeOffscreenCanvas(width, height);
 
     let ctx = this.offscreen.getContext('2d');
     ctx.clearRect(0, 0, this.offscreen.width, this.offscreen.height);
@@ -87,6 +87,8 @@ class App {
       }
 
       ctx.putImageData(imageData, 0, 0);
+
+      this.imageContainer.setSize(width, height);
     }
 
     let canvas = this.canvas;
@@ -251,50 +253,34 @@ class App {
     }
   }
 
-  // createWindow(title, content, x, y) {
-  //   let el = document.createElement('div');
-  //   el.classList.add('container');
-  //
-  //   let titleEl = document.createElement('div');
-  //   titleEl.id = 'title';
-  //   titleEl.classList.add('title');
-  //   titleEl.appendChild(document.createTextNode(title));
-  //   el.appendChild(titleEl);
-  //
-  //   let contentEl = document.createElement('div');
-  //   contentEl.id = 'content';
-  //
-  //   contentEl.appendChild(content);
-  //
-  //   el.appendChild(contentEl);
-  //
-  //   el.style.left = x + 'px';
-  //   el.style.top = y + 'px';
-  //
-  //   return el;
-  // }
-
   createElements() {
+    this.workspace = new Workspace({ el: this.el });
+
     this.canvasContainerEl = document.createElement('div');
     this.canvasContainerEl.classList.add('room-image');
 
     this.canvas = document.createElement('canvas');
     this.canvasContainerEl.appendChild(this.canvas);
 
-    this.imageContainer = new Container({ title: 'Background', content: this.canvasContainerEl, x: 32, y: 32 });
-    this.imageContainer.show();
+    this.imageContainer = new Container({ title: 'Background', content: this.canvasContainerEl, x: 32, y: 32, width: 320, height: 200 });
+    this.workspace.add(this.imageContainer);
+    // this.imageContainer.show();
 
     this.paletteEl = document.createElement('div');
     this.paletteEl.classList.add('palette-swatches');
 
-    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 256 });
-    this.paletteContainer.show();
+    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 256, width: 384, height: 96 });
+    // this.paletteContainer.show();
+    this.workspace.add(this.paletteContainer);
 
     this.objectsEl = document.createElement('div');
     this.objectsEl.classList.add('objects');
 
-    this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32 });
-    this.objectsContainer.show();
+    this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32, width: 320, height: 200 });
+    // this.objectsContainer.show();
+    this.workspace.add(this.objectsContainer);
+
+    // console.log(this.imageContainer.el.style);
   }
 
   initEventListeners() {
@@ -312,7 +298,7 @@ global.App = App;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./bitmap":3,"./resource":5,"./scumm":6,"./ui/container":9}],2:[function(require,module,exports){
+},{"./bitmap":3,"./resource":5,"./scumm":6,"./ui/container":9,"./ui/workspace":10}],2:[function(require,module,exports){
 
 class BitStream {
   constructor(stream) {
@@ -934,36 +920,51 @@ module.exports = Room;
 
 class Container {
   constructor(params) {
-    let el = document.createElement('div');
-    el.classList.add('container');
+    this.parent = params.parent;
 
-    let titleEl = document.createElement('div');
-    titleEl.id = 'title';
-    titleEl.classList.add('title');
-    titleEl.appendChild(document.createTextNode(params.title));
-    el.appendChild(titleEl);
+    this.el = document.createElement('div');
+    this.el.classList.add('container');
 
-    let contentEl = document.createElement('div');
-    contentEl.id = 'content';
+    this.titleEl = document.createElement('div');
+    this.titleEl.id = 'title';
+    this.titleEl.classList.add('container-title');
+    this.titleEl.appendChild(document.createTextNode(params.title));
+    this.el.appendChild(this.titleEl);
 
-    contentEl.appendChild(params.content);
+    this.contentEl = document.createElement('div');
+    this.contentEl.id = 'content';
+    this.contentEl.classList.add('container-content');
 
-    el.appendChild(contentEl);
+    this.contentEl.appendChild(params.content);
 
-    el.style.left = params.x + 'px';
-    el.style.top = params.y + 'px';
+    this.el.appendChild(this.contentEl);
 
-    this.el = el;
+    this.el.style.left = params.x + 'px';
+    this.el.style.top = params.y + 'px';
+
+    this.contentEl.style.width = params.width + 'px';
+    this.contentEl.style.height = params.height + 'px';
 
     this.el.addEventListener('mousedown', this);
   }
 
-  show() {
-    document.body.appendChild(this.el);
+  // show() {
+  //   let parent = this.parent || document.body;
+  //   parent.appendChild(this.el);
+  // }
+  //
+  // hide() {
+  //   let parent = this.parent || document.body;
+  //   parent.removeChild(this.el);
+  // }
+
+  dom() {
+    return this.el;
   }
 
-  hide() {
-    document.body.removeChild(this.el);
+  setSize(width, height) {
+    this.contentEl.style.width = width + 'px';
+    this.contentEl.style.height = height + 'px';
   }
 
   cancelDrag() {
@@ -1007,6 +1008,64 @@ class Container {
 }
 
 module.exports = Container;
+
+},{}],10:[function(require,module,exports){
+
+class Workspace {
+  constructor(params) {
+    this.el = params.el;
+    this.children = [];
+  }
+
+  add(child) {
+    child.z = this.children.length ? this.children[this.children.length - 1].z + 1 : 1;
+    let childEl = child.dom();
+    childEl.addEventListener('mousedown', this);
+    this.el.appendChild(childEl);
+    childEl.style.zIndex = child.z;
+    this.children.push(child);
+  }
+
+  remove(child) {
+    let childEl = child.dom();
+    childEl.removeEventListener('mousedown', this);
+    this.el.removeChild(childEl);
+    this.children = this.children.filter(element => element !== child);
+  }
+
+  bringToFront(child) {
+    child.z = Number.POSITIVE_INFINITY;
+    this.children.sort((a, b) => {
+      return a.z - b.z;
+    });
+    for (var i = 0; i < this.children.length; i++) {
+      let child = this.children[i];
+      child.dom().style.zIndex = child.z = i;
+    }
+  }
+
+  onMouseDown(event) {
+    let temp = event.target;
+
+    while (temp.parentNode && temp.parentNode !== document.body) {
+      if (temp.parentNode === this.el) break;
+      temp = temp.parentNode;
+    }
+
+    let child = this.children.find(element => element.dom() === temp);
+    if (child) {
+      this.bringToFront(child);
+    }
+  }
+
+  handleEvent(event) {
+    if (event.type == 'mousedown') {
+      this.onMouseDown(event);
+    }
+  }
+}
+
+module.exports = Workspace;
 
 },{}]},{},[1])
 

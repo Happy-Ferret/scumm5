@@ -1,6 +1,7 @@
-const Resource = require('./resource');
 const Container = require('./ui/container');
+const Workspace = require('./ui/workspace');
 
+const Resource = require('./resource');
 const Scumm = require('./scumm');
 const Bitmap = require('./bitmap');
 
@@ -21,6 +22,8 @@ class App {
     this.offscreen = document.createElement('canvas');
     this.offscreen.width = 320;
     this.offscreen.height = 200;
+
+    this.el = document.getElementById('workspace');
 
     window.addEventListener('DOMContentLoaded', () => {
       this.createElements();
@@ -49,16 +52,11 @@ class App {
         let b = palette[i*3 + 2];
         let swatch = document.createElement('div');
         swatch.classList.add('palette-swatch');
-        swatch.style.backgroundColor = 'rgb('+r+','+g+','+b+')';
-        swatch.title = i + ':' + 'rgb('+r+','+g+','+b+')';
+        swatch.style.backgroundColor = 'rgb(' + r + ',' + g + ',' + b + ')';
+        swatch.title = 'Index: ' + i + '\n' + 'RGB: ' + r + ', ' + g + ', ' + b;
         paletteEl.appendChild(swatch);
       }
     }
-  }
-
-  resizeOffscreenCanvas(width, height) {
-    this.offscreen.width = width;
-    this.offscreen.height = height;
   }
 
   createRoomImageElement() {
@@ -68,7 +66,9 @@ class App {
     let width = room.width;
     let height = room.height;
 
-    this.resizeOffscreenCanvas(width, height);
+    this.offscreen.width = width;
+    this.offscreen.height = height;
+    // this.resizeOffscreenCanvas(width, height);
 
     let ctx = this.offscreen.getContext('2d');
     ctx.clearRect(0, 0, this.offscreen.width, this.offscreen.height);
@@ -85,6 +85,8 @@ class App {
       }
 
       ctx.putImageData(imageData, 0, 0);
+
+      this.imageContainer.setSize(width, height);
     }
 
     let canvas = this.canvas;
@@ -253,51 +255,34 @@ class App {
     }
   }
 
-  // createWindow(title, content, x, y) {
-  //   let el = document.createElement('div');
-  //   el.classList.add('container');
-  //
-  //   let titleEl = document.createElement('div');
-  //   titleEl.id = 'title';
-  //   titleEl.classList.add('title');
-  //   titleEl.appendChild(document.createTextNode(title));
-  //   el.appendChild(titleEl);
-  //
-  //   let contentEl = document.createElement('div');
-  //   contentEl.id = 'content';
-  //
-  //   contentEl.appendChild(content);
-  //
-  //   el.appendChild(contentEl);
-  //
-  //   el.style.left = x + 'px';
-  //   el.style.top = y + 'px';
-  //
-  //   return el;
-  // }
-
   createElements() {
+    this.workspace = new Workspace({ el: this.el });
+
     this.canvasContainerEl = document.createElement('div');
     this.canvasContainerEl.classList.add('room-image');
 
     this.canvas = document.createElement('canvas');
     this.canvasContainerEl.appendChild(this.canvas);
 
-    this.imageContainer = new Container({ title: 'Background', content: this.canvasContainerEl, x: 32, y: 32 });
-    this.imageContainer.show();
+    this.imageContainer = new Container({ title: 'Background', content: this.canvasContainerEl, x: 32, y: 32, width: 320, height: 200 });
+    this.workspace.add(this.imageContainer);
+    // this.imageContainer.show();
 
     this.paletteEl = document.createElement('div');
     this.paletteEl.classList.add('palette-swatches');
 
-    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 256 });
-    this.paletteContainer.show();
+    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 256, width: 384, height: 96 });
+    // this.paletteContainer.show();
+    this.workspace.add(this.paletteContainer);
 
     this.objectsEl = document.createElement('div');
     this.objectsEl.classList.add('objects');
 
-    this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32 });
-    this.objectsContainer.show();
+    this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32, width: 320, height: 200 });
+    // this.objectsContainer.show();
+    this.workspace.add(this.objectsContainer);
 
+    // console.log(this.imageContainer.el.style);
   }
 
   initEventListeners() {

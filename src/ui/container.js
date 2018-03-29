@@ -1,36 +1,52 @@
 
 class Container {
   constructor(params) {
-    let el = document.createElement('div');
-    el.classList.add('container');
+    this.parent = params.parent;
 
-    let titleEl = document.createElement('div');
-    titleEl.id = 'title';
-    titleEl.classList.add('title');
-    titleEl.appendChild(document.createTextNode(params.title));
-    el.appendChild(titleEl);
+    this.el = document.createElement('div');
+    this.el.classList.add('container');
 
-    let contentEl = document.createElement('div');
-    contentEl.id = 'content';
+    this.titleEl = document.createElement('div');
+    this.titleEl.id = 'title';
+    this.titleEl.classList.add('container-title');
+    this.titleEl.appendChild(document.createTextNode(params.title));
+    this.el.appendChild(this.titleEl);
 
-    contentEl.appendChild(params.content);
+    this.contentEl = document.createElement('div');
+    this.contentEl.id = 'content';
+    this.contentEl.classList.add('container-content');
 
-    el.appendChild(contentEl);
+    this.contentEl.appendChild(params.content);
 
-    el.style.left = params.x + 'px';
-    el.style.top = params.y + 'px';
+    this.el.appendChild(this.contentEl);
 
-    this.el = el;
+    this.el.style.left = params.x + 'px';
+    this.el.style.top = params.y + 'px';
+
+    this.contentEl.style.width = params.width + 'px';
+    this.contentEl.style.height = params.height + 'px';
 
     this.el.addEventListener('mousedown', this);
   }
 
-  show() {
-    document.body.appendChild(this.el);
+  // show() {
+  //   let parent = this.parent || document.body;
+  //   parent.appendChild(this.el);
+  // }
+  //
+  // hide() {
+  //   let parent = this.parent || document.body;
+  //   parent.removeChild(this.el);
+  // }
+
+  dom() {
+    return this.el;
   }
 
-  hide() {
-    document.body.removeChild(this.el);
+  setSize(width, height) {
+    this.contentEl.style.width = width + 'px';
+    this.contentEl.style.height = height + 'px';
+
   }
 
   cancelDrag() {
