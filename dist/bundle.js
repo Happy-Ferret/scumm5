@@ -2,6 +2,7 @@
 (function (global){
 const Container = require('./ui/container');
 const Workspace = require('./ui/workspace');
+const List = require('./ui/list');
 
 const Resource = require('./resource');
 const Scumm = require('./scumm');
@@ -70,7 +71,6 @@ class App {
 
     this.offscreen.width = width;
     this.offscreen.height = height;
-    // this.resizeOffscreenCanvas(width, height);
 
     let ctx = this.offscreen.getContext('2d');
     ctx.clearRect(0, 0, this.offscreen.width, this.offscreen.height);
@@ -92,14 +92,14 @@ class App {
     }
 
     let canvas = this.canvas;
+    canvas.title = room.name;
     canvas.width = width;
     canvas.height = height;
 
     ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     // ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(this.offscreen, 0, 0, this.offscreen.width, this.offscreen.height);
-    // this.canvasContainerEl.appendChild(canvas);
   }
 
   createCanvasFromBitmap(bitmap, width, height) {
@@ -144,7 +144,6 @@ class App {
 
         let titleEl = document.createElement('div');
         titleEl.classList.add('object-title');
-        // titleEl.appendChild(document.createTextNode(ob.name));
         titleEl.innerHTML = ob.id;
 
         el.title = ob.name;
@@ -155,6 +154,10 @@ class App {
         contentEl.appendChild(el);
       }
     }
+
+    let el = document.createElement('div');
+    el.style.flex = 'auto';
+    contentEl.appendChild(el);
   }
 
   setRoom(num) {
@@ -168,20 +171,22 @@ class App {
       this.createRoomImageElement();
       this.createRoomObjects();
 
-      // console.log(num);
+      this.list.select(room.id);
     }
   }
 
   parseFiles() {
     if (this.files[INDEX_FILE]) {
-      // this.parseIndex();
       this.resource.addIndex(this.files[INDEX_FILE]);
     }
     if (this.files[BUNDLE_FILE]) {
       this.resource.addBundle(this.files[BUNDLE_FILE]);
-      this.setRoom(29);
-      // this.parseBundle();
-      // this.setRoom(4);
+      let roomList = this.resource.getRoomList();
+      for (var i = 0; i < roomList.length; i++) {
+        let room = roomList[i];
+        this.list.addItem({ id: room.id, title: room.id.toString().padStart(3, '0') + ' ' + room.name });
+      }
+      this.setRoom(47);
     }
   }
 
@@ -235,9 +240,9 @@ class App {
 
   onKeyDown(event) {
     if (event.key == 'ArrowRight' && !event.repeat) {
-      this.setRoom(this.roomno + 1);
+      // this.setRoom(this.roomno + 1);
     } else if (event.key == 'ArrowLeft' && !event.repeat) {
-      this.setRoom(this.roomno - 1);
+      // this.setRoom(this.roomno - 1);
     }
   }
 
@@ -254,7 +259,21 @@ class App {
   }
 
   createElements() {
-    this.workspace = new Workspace({ el: this.el });
+    this.app = document.getElementById('app');
+
+    this.roomListEl = document.createElement('div');
+    this.roomListEl.classList.add('room-list');
+
+    this.list = new List();
+    this.list.dom().addEventListener('selected', e => {
+      let id = e.detail.id;
+      this.setRoom(id);
+    });
+    this.roomListEl.appendChild(this.list.dom());
+
+    this.app.appendChild(this.roomListEl);
+
+    this.workspace = new Workspace({ parent: this.app });
 
     this.canvasContainerEl = document.createElement('div');
     this.canvasContainerEl.classList.add('room-image');
@@ -264,23 +283,18 @@ class App {
 
     this.imageContainer = new Container({ title: 'Background', content: this.canvasContainerEl, x: 32, y: 32, width: 320, height: 200 });
     this.workspace.add(this.imageContainer);
-    // this.imageContainer.show();
 
     this.paletteEl = document.createElement('div');
     this.paletteEl.classList.add('palette-swatches');
 
-    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 256, width: 384, height: 96 });
-    // this.paletteContainer.show();
+    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 280, width: 384, height: 96, status: false });
     this.workspace.add(this.paletteContainer);
 
     this.objectsEl = document.createElement('div');
     this.objectsEl.classList.add('objects');
 
     this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32, width: 320, height: 200 });
-    // this.objectsContainer.show();
     this.workspace.add(this.objectsContainer);
-
-    // console.log(this.imageContainer.el.style);
   }
 
   initEventListeners() {
@@ -298,7 +312,7 @@ global.App = App;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./bitmap":3,"./resource":5,"./scumm":6,"./ui/container":9,"./ui/workspace":10}],2:[function(require,module,exports){
+},{"./bitmap":3,"./resource":5,"./scumm":6,"./ui/container":9,"./ui/list":10,"./ui/workspace":11}],2:[function(require,module,exports){
 
 class BitStream {
   constructor(stream) {
@@ -463,15 +477,7 @@ class Resource {
     return this.getBlockTypeName(type);
   }
 
-  parseBlockHeader(stream) {
-    let type = stream.getUint32LE();
-    let size = stream.getUint32();
-    let name = this.getBlockTypeName(type);
-    return { type: type, size: size, name: name };
-  }
-
   parseIndex(buffer) {
-    // if (!this.index) return;
     console.log('parseIndex');
     let stream = new BufferStream(buffer);
 
@@ -485,14 +491,10 @@ class Resource {
           let roomno = stream.getUint8();
           if (roomno == 0) break;
           let bytes = stream.getBytes(9);
-          // console.log(bytes);
           this.roomNames[roomno] = bytes.reduce((accumulator, currentValue) => {
             return accumulator + (currentValue != 0xff ? String.fromCharCode(currentValue ^ 0xff) : '');
           }, '');
-          // console.log(this.roomNames[roomno]);
         }
-        // console.log(this.roomNames);
-        // }
         // else if (name == 'DROO') {
         //   let numitems = stream.getUint16LE();
         //   let roomNos = stream.getBytes(, numitems);
@@ -508,18 +510,10 @@ class Resource {
     }
   }
 
-  // getBundleStream() {
-  //   let filename = BUNDLE_FILE;
-  //   if (!this.files[filename]) return;
-  //   let stream = new BufferStream(this.files[filename]);
-  //   return stream;
-  // }
-
   decompress1(bits, shift, width, height) {
     let pixels = new Uint8Array(width * height);
     let offset = 0;
 
-    // let color = bits.read(shift);
     let color = bits.read(8);
 
     let inc = -1;
@@ -530,8 +524,6 @@ class Resource {
         if (!bits.read()) {
           color = bits.read(shift);
           inc = -1;
-          // color = bits.read(shift);
-          // inc = -1;
         } else {
           if (!bits.read()) {
             color += inc;
@@ -539,8 +531,6 @@ class Resource {
             inc = -inc;
             color += inc;
           }
-          // if (bits.read()) inc = -inc;
-          // color += inc;
         }
       }
     }
@@ -552,7 +542,6 @@ class Resource {
     let pixels = new Uint8Array(width * height);
     let offset = 0;
 
-    // let color = bits.read(shift);
     let color = bits.read(8);
     let skip = false;
 
@@ -570,7 +559,6 @@ class Resource {
           if (incm) {
             color += incm;
           } else {
-            // console.log('run');
             let run = bits.read(8);
             for (var i = 0; i < run; i++) {
               pixels[offset++] = color;
@@ -585,8 +573,6 @@ class Resource {
     }
     return pixels;
   }
-
-  //scab-isl 01010100.01101110.11011010.00110100.01001101
 
   decompressStrip(stream, width, height) {
     let code = stream.getUint8();
@@ -654,8 +640,6 @@ class Resource {
 
     if (name !== 'SMAP') return;
 
-    // console.log('smap', width, height);
-
     let offsets = [];
 
     for (var i = 0; i < width / 8; i++) offsets.push(stream.getUint32LE());
@@ -671,8 +655,6 @@ class Resource {
           y = x == 7 ? y + 1 : y;
           x = x == 7 ? 0 : x + 1;
         }
-      } else {
-        console.log(i, offsets.length);
       }
     }
 
@@ -703,7 +685,6 @@ class Resource {
         ob.bitmap = this.parseSmap(stream, ob.width, ob.height);
       }
     }
-    // console.log(ob);
 
     return ob;
   }
@@ -724,17 +705,13 @@ class Resource {
     ob.walk_x = stream.getUint16LE();
     ob.walk_y = stream.getUint16LE();
     ob.actor_dir = stream.getUint8();
+    ob.name = '';
 
     name = this.parseBlockName(stream);
     size = stream.getUint32();
     stream.advance(size - 8);
 
     stream.advance(8);
-
-    // name = this.parseBlockName(stream);
-    // size = stream.getUint32();
-
-    ob.name = '';
 
     for (let b = stream.getUint8(); b !== 0; b = stream.getUint8()) {
       ob.name += String.fromCharCode(b);
@@ -804,6 +781,18 @@ class Resource {
     });
 
     return room;
+  }
+
+  getRoomList() {
+    // console.log('getRoomList');
+    let result = [];
+    for (var i = 0; i < this.rooms.length; i++) {
+      let room = this.rooms[i];
+      if (room) {
+        result.push({ id: i, name: this.roomNames[i] });
+      }
+    }
+    return result;
   }
 
   parseBundle(buffer) {
@@ -942,29 +931,27 @@ class Container {
     this.el.style.left = params.x + 'px';
     this.el.style.top = params.y + 'px';
 
-    this.contentEl.style.width = params.width + 'px';
-    this.contentEl.style.height = params.height + 'px';
+    // this.contentEl.style.width = params.width + 'px';
+    // this.contentEl.style.height = params.height + 'px';
+    this.setSize(params.width, params.height);
+
+    if (params.status) {
+      let statusEl = document.createElement('div');
+      statusEl.classList.add('container-status');
+      // statusEl.innerHTML = 'Status 1234567890';
+      this.el.appendChild(statusEl);
+    }
 
     this.el.addEventListener('mousedown', this);
   }
-
-  // show() {
-  //   let parent = this.parent || document.body;
-  //   parent.appendChild(this.el);
-  // }
-  //
-  // hide() {
-  //   let parent = this.parent || document.body;
-  //   parent.removeChild(this.el);
-  // }
 
   dom() {
     return this.el;
   }
 
   setSize(width, height) {
-    this.contentEl.style.width = width + 'px';
-    this.contentEl.style.height = height + 'px';
+    this.contentEl.style.maxWidth = this.contentEl.style.width = width + 'px';
+    this.contentEl.style.maxHeight = this.contentEl.style.height = height + 'px';
   }
 
   cancelDrag() {
@@ -981,9 +968,11 @@ class Container {
   }
 
   onMouseDown(event) {
-    window.addEventListener('mousemove', this);
-    window.addEventListener('mouseup', this);
-    window.addEventListener('blur', this);
+    if (event.button == 0) {
+      window.addEventListener('mousemove', this);
+      window.addEventListener('mouseup', this);
+      window.addEventListener('blur', this);
+    }
   }
 
   onMouseUp(event) {
@@ -1011,10 +1000,88 @@ module.exports = Container;
 
 },{}],10:[function(require,module,exports){
 
+class List {
+  constructor(params) {
+    this.el = document.createElement('div');
+    this.el.classList.add('list');
+    this.listEl = document.createElement('ul');
+    this.el.appendChild(this.listEl);
+
+    this.listEl.addEventListener('mousedown', this);
+  }
+
+  createItem(item) {
+    let el = document.createElement('li');
+    el.id = 'item-' + item.id;
+    el.classList.add('list-item');
+    el.dataset.id = item.id;
+    el.appendChild(document.createTextNode(item.title));
+    this.listEl.appendChild(el);
+  }
+
+  addItem(item) {
+    this.createItem(item);
+  }
+
+  addItems(items) {
+    for (var i = 0; i < items.length; i++) {
+      let item = items[i];
+      this.createItem(item);
+    }
+  }
+
+  dom() {
+    return this.el;
+  }
+
+  select(id) {
+    // console.log('select', id);
+    if (id != undefined) {
+      if (this.selected) {
+        let el = this.listEl.querySelector('#item-' + this.selected);
+        if (el) {
+          el.classList.remove('selected');
+        }
+      }
+      let el = this.listEl.querySelector('#item-' + id);
+      if (el) {
+        el.classList.add('selected');
+      }
+      this.selected = id;
+    }
+  }
+
+  onMouseDown(event) {
+    let id = event.target.dataset.id;
+    if (id && this.selected !== id) {
+      var myEvent = new CustomEvent('selected', {
+        detail: {
+          id: id
+          // bubbles: true,
+          // cancelable: false
+        } });
+      this.el.dispatchEvent(myEvent);
+    }
+  }
+
+  handleEvent(event) {
+    if (event.type == 'mousedown') {
+      this.onMouseDown(event);
+    }
+  }
+}
+
+module.exports = List;
+
+},{}],11:[function(require,module,exports){
+
 class Workspace {
   constructor(params) {
-    this.el = params.el;
+    this.el = document.createElement('div');
+    this.el.classList.add('workspace');
+    this.parent = params.parent;
     this.children = [];
+    this.parent.appendChild(this.el);
   }
 
   add(child) {

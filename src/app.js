@@ -1,5 +1,6 @@
 const Container = require('./ui/container');
 const Workspace = require('./ui/workspace');
+const List = require('./ui/list');
 
 const Resource = require('./resource');
 const Scumm = require('./scumm');
@@ -68,7 +69,6 @@ class App {
 
     this.offscreen.width = width;
     this.offscreen.height = height;
-    // this.resizeOffscreenCanvas(width, height);
 
     let ctx = this.offscreen.getContext('2d');
     ctx.clearRect(0, 0, this.offscreen.width, this.offscreen.height);
@@ -90,14 +90,14 @@ class App {
     }
 
     let canvas = this.canvas;
+    canvas.title = room.name;
     canvas.width = width;
     canvas.height = height;
 
     ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     // ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(this.offscreen, 0, 0, this.offscreen.width, this.offscreen.height);
-    // this.canvasContainerEl.appendChild(canvas);
   }
 
   createCanvasFromBitmap(bitmap, width, height) {
@@ -142,7 +142,6 @@ class App {
 
         let titleEl = document.createElement('div');
         titleEl.classList.add('object-title');
-        // titleEl.appendChild(document.createTextNode(ob.name));
         titleEl.innerHTML = ob.id;
 
         el.title = ob.name;
@@ -153,6 +152,10 @@ class App {
         contentEl.appendChild(el);
       }
     }
+
+    let el = document.createElement('div');
+    el.style.flex = 'auto';
+    contentEl.appendChild(el);
   }
 
   setRoom(num) {
@@ -166,20 +169,22 @@ class App {
       this.createRoomImageElement();
       this.createRoomObjects();
 
-      // console.log(num);
+      this.list.select(room.id);
     }
   }
 
   parseFiles() {
     if (this.files[INDEX_FILE]) {
-      // this.parseIndex();
       this.resource.addIndex(this.files[INDEX_FILE]);
     }
     if (this.files[BUNDLE_FILE]) {
       this.resource.addBundle(this.files[BUNDLE_FILE]);
-      this.setRoom(29);
-      // this.parseBundle();
-      // this.setRoom(4);
+      let roomList = this.resource.getRoomList();
+      for (var i = 0; i < roomList.length; i++) {
+        let room = roomList[i];
+        this.list.addItem({ id: room.id, title: room.id.toString().padStart(3, '0') + ' ' + room.name });
+      }
+      this.setRoom(47);
     }
   }
 
@@ -233,10 +238,10 @@ class App {
 
   onKeyDown(event) {
     if (event.key == 'ArrowRight' && !event.repeat) {
-      this.setRoom(this.roomno + 1);
+      // this.setRoom(this.roomno + 1);
     }
     else if (event.key == 'ArrowLeft' && !event.repeat) {
-      this.setRoom(this.roomno - 1);
+      // this.setRoom(this.roomno - 1);
     }
   }
 
@@ -256,7 +261,22 @@ class App {
   }
 
   createElements() {
-    this.workspace = new Workspace({ el: this.el });
+    this.app = document.getElementById('app');
+
+    this.roomListEl = document.createElement('div');
+    this.roomListEl.classList.add('room-list');
+
+    this.list = new List();
+    this.list.dom().addEventListener('selected', (e) => {
+      let id = e.detail.id;
+      this.setRoom(id);
+    });
+    this.roomListEl.appendChild(this.list.dom());
+
+    this.app.appendChild(this.roomListEl);
+
+
+    this.workspace = new Workspace({ parent: this.app });
 
     this.canvasContainerEl = document.createElement('div');
     this.canvasContainerEl.classList.add('room-image');
@@ -266,23 +286,19 @@ class App {
 
     this.imageContainer = new Container({ title: 'Background', content: this.canvasContainerEl, x: 32, y: 32, width: 320, height: 200 });
     this.workspace.add(this.imageContainer);
-    // this.imageContainer.show();
 
     this.paletteEl = document.createElement('div');
     this.paletteEl.classList.add('palette-swatches');
 
-    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 256, width: 384, height: 96 });
-    // this.paletteContainer.show();
+    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 280, width: 384, height: 96, status: false });
     this.workspace.add(this.paletteContainer);
 
     this.objectsEl = document.createElement('div');
     this.objectsEl.classList.add('objects');
 
     this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32, width: 320, height: 200 });
-    // this.objectsContainer.show();
     this.workspace.add(this.objectsContainer);
 
-    // console.log(this.imageContainer.el.style);
   }
 
   initEventListeners() {

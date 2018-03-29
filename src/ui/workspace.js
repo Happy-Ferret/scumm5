@@ -1,8 +1,11 @@
 
 class Workspace {
   constructor(params) {
-    this.el = params.el;
+    this.el = document.createElement('div');
+    this.el.classList.add('workspace');
+    this.parent = params.parent;
     this.children = [];
+    this.parent.appendChild(this.el);
   }
 
   add(child) {

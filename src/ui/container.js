@@ -23,29 +23,27 @@ class Container {
     this.el.style.left = params.x + 'px';
     this.el.style.top = params.y + 'px';
 
-    this.contentEl.style.width = params.width + 'px';
-    this.contentEl.style.height = params.height + 'px';
+    // this.contentEl.style.width = params.width + 'px';
+    // this.contentEl.style.height = params.height + 'px';
+    this.setSize(params.width, params.height);
+
+    if (params.status) {
+      let statusEl = document.createElement('div');
+      statusEl.classList.add('container-status');
+      // statusEl.innerHTML = 'Status 1234567890';
+      this.el.appendChild(statusEl);
+    }
 
     this.el.addEventListener('mousedown', this);
   }
-
-  // show() {
-  //   let parent = this.parent || document.body;
-  //   parent.appendChild(this.el);
-  // }
-  //
-  // hide() {
-  //   let parent = this.parent || document.body;
-  //   parent.removeChild(this.el);
-  // }
 
   dom() {
     return this.el;
   }
 
   setSize(width, height) {
-    this.contentEl.style.width = width + 'px';
-    this.contentEl.style.height = height + 'px';
+    this.contentEl.style.maxWidth = this.contentEl.style.width = width + 'px';
+    this.contentEl.style.maxHeight = this.contentEl.style.height = height + 'px';
 
   }
 
@@ -63,9 +61,11 @@ class Container {
   }
 
   onMouseDown(event) {
-    window.addEventListener('mousemove', this);
-    window.addEventListener('mouseup', this);
-    window.addEventListener('blur', this);
+    if (event.button == 0) {
+      window.addEventListener('mousemove', this);
+      window.addEventListener('mouseup', this);
+      window.addEventListener('blur', this);
+    }
   }
 
   onMouseUp(event) {

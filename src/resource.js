@@ -34,15 +34,7 @@ class Resource {
     return this.getBlockTypeName(type);
   }
 
-  parseBlockHeader(stream) {
-    let type = stream.getUint32LE();
-    let size = stream.getUint32();
-    let name = this.getBlockTypeName(type);
-    return { type: type, size: size, name: name };
-  }
-
   parseIndex(buffer) {
-    // if (!this.index) return;
     console.log('parseIndex');
     let stream = new BufferStream(buffer);
 
@@ -55,14 +47,10 @@ class Resource {
           let roomno = stream.getUint8();
           if (roomno == 0) break;
           let bytes = stream.getBytes(9);
-          // console.log(bytes);
           this.roomNames[roomno] = bytes.reduce((accumulator, currentValue) => {
             return accumulator + (currentValue != 0xff ? String.fromCharCode(currentValue ^ 0xff) : '');
           }, '');
-          // console.log(this.roomNames[roomno]);
         }
-        // console.log(this.roomNames);
-      // }
       // else if (name == 'DROO') {
       //   let numitems = stream.getUint16LE();
       //   let roomNos = stream.getBytes(, numitems);
@@ -78,18 +66,10 @@ class Resource {
     }
   }
 
-  // getBundleStream() {
-  //   let filename = BUNDLE_FILE;
-  //   if (!this.files[filename]) return;
-  //   let stream = new BufferStream(this.files[filename]);
-  //   return stream;
-  // }
-
   decompress1(bits, shift, width, height) {
     let pixels = new Uint8Array(width * height);
     let offset = 0;
 
-    // let color = bits.read(shift);
     let color = bits.read(8);
 
     let inc = -1;
@@ -100,8 +80,6 @@ class Resource {
         if (!bits.read()) {
           color = bits.read(shift);
           inc = -1;
-          // color = bits.read(shift);
-          // inc = -1;
         } else {
           if (!bits.read()) {
             color += inc;
@@ -109,8 +87,6 @@ class Resource {
             inc = -inc;
             color += inc;
           }
-          // if (bits.read()) inc = -inc;
-          // color += inc;
         }
       }
     }
@@ -122,7 +98,6 @@ class Resource {
     let pixels = new Uint8Array(width * height);
     let offset = 0;
 
-    // let color = bits.read(shift);
     let color = bits.read(8);
     let skip = false;
 
@@ -140,7 +115,6 @@ class Resource {
           if (incm) {
             color += incm;
           } else {
-            // console.log('run');
             let run = bits.read(8);
             for (var i = 0; i < run; i++) {
               pixels[offset++] = color;
@@ -155,8 +129,6 @@ class Resource {
     }
     return pixels;
   }
-
-  //scab-isl 01010100.01101110.11011010.00110100.01001101
 
   decompressStrip(stream, width, height) {
     let code = stream.getUint8();
@@ -223,8 +195,6 @@ class Resource {
 
     if (name !== 'SMAP') return;
 
-    // console.log('smap', width, height);
-
     let offsets = [];
 
     for (var i = 0; i < width / 8; i++)
@@ -241,8 +211,6 @@ class Resource {
           y = (x == 7 ? y + 1 : y);
           x = (x == 7 ? 0 : x + 1);
         }
-      } else {
-        console.log(i, offsets.length);
       }
 
     }
@@ -274,7 +242,6 @@ class Resource {
         ob.bitmap = this.parseSmap(stream, ob.width, ob.height);
       }
     }
-    // console.log(ob);
 
     return ob;
   }
@@ -295,17 +262,13 @@ class Resource {
     ob.walk_x = stream.getUint16LE();
     ob.walk_y = stream.getUint16LE();
     ob.actor_dir = stream.getUint8();
+    ob.name = '';
 
     name = this.parseBlockName(stream);
     size = stream.getUint32();
     stream.advance(size - 8);
 
     stream.advance(8);
-
-    // name = this.parseBlockName(stream);
-    // size = stream.getUint32();
-
-    ob.name = '';
 
     for (let b = stream.getUint8(); b !== 0; b = stream.getUint8()) {
       ob.name += String.fromCharCode(b);
@@ -380,6 +343,18 @@ class Resource {
     });
 
     return room;
+  }
+
+  getRoomList() {
+    // console.log('getRoomList');
+    let result = [];
+    for (var i = 0; i < this.rooms.length; i++) {
+      let room = this.rooms[i];
+      if (room) {
+        result.push({ id: i, name: this.roomNames[i] });
+      }
+    }
+    return result;
   }
 
   parseBundle(buffer) {
