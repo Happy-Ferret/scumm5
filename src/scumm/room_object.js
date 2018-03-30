@@ -10,7 +10,7 @@ class RoomObject {
     this.y = params.y;
     this.width = params.width;
     this.height = params.height;
-    this.bitmap = params.bitmap;
+    this.bitmaps = params.bitmaps;
   }
 }
 

@@ -130,28 +130,34 @@ class App {
     while (contentEl.firstChild) contentEl.removeChild(contentEl.firstChild);
 
     for (var i = 0; i < objects.length; i++) {
+      // console.log(i);
       let ob = objects[i];
 
-      if (ob.bitmap) {
-        let el = document.createElement('div');
-        el.classList.add('object');
+      if (ob.bitmaps) {
+        // console.log(ob.id, ob.bitmaps.length);
+        for (var j = 0; j < ob.bitmaps.length; j++) {
+          let bitmap = ob.bitmaps[j];
 
-        let imageEl = document.createElement('div');
-        imageEl.classList.add('object-image');
+          let el = document.createElement('div');
+          el.classList.add('object');
 
-        let canvas = this.createCanvasFromBitmap(ob.bitmap, ob.width, ob.height);
-        imageEl.appendChild(canvas);
+          let imageEl = document.createElement('div');
+          imageEl.classList.add('object-image');
 
-        let titleEl = document.createElement('div');
-        titleEl.classList.add('object-title');
-        titleEl.innerHTML = ob.id;
+          let canvas = this.createCanvasFromBitmap(bitmap, ob.width, ob.height);
+          imageEl.appendChild(canvas);
 
-        el.title = ob.name;
+          let titleEl = document.createElement('div');
+          titleEl.classList.add('object-title');
+          titleEl.innerHTML = ob.id;
 
-        el.appendChild(imageEl);
-        el.appendChild(titleEl);
+          el.title = ob.name;
 
-        contentEl.appendChild(el);
+          el.appendChild(imageEl);
+          el.appendChild(titleEl);
+
+          contentEl.appendChild(el);
+        }
       }
     }
 
@@ -186,7 +192,7 @@ class App {
         let room = roomList[i];
         this.list.addItem({ id: room.id, title: room.id.toString().padStart(3, '0') + ' ' + room.name });
       }
-      this.setRoom(47);
+      this.setRoom(6);
     }
   }
 
@@ -261,17 +267,28 @@ class App {
   createElements() {
     this.app = document.getElementById('app');
 
-    this.roomListEl = document.createElement('div');
-    this.roomListEl.classList.add('room-list');
+    let sidebarEl = document.createElement('div');
+    sidebarEl.classList.add('side-bar');
 
     this.list = new List();
     this.list.dom().addEventListener('selected', e => {
       let id = e.detail.id;
       this.setRoom(id);
     });
+
+    this.roomListEl = document.createElement('div');
+    this.roomListEl.classList.add('room-list');
+
     this.roomListEl.appendChild(this.list.dom());
 
-    this.app.appendChild(this.roomListEl);
+    let el = document.createElement('div');
+    el.classList.add('room-list-heading');
+    el.innerHTML = 'Rooms';
+    sidebarEl.appendChild(el);
+
+    sidebarEl.appendChild(this.roomListEl);
+
+    this.app.appendChild(sidebarEl);
 
     this.workspace = new Workspace({ parent: this.app });
 
@@ -287,7 +304,7 @@ class App {
     this.paletteEl = document.createElement('div');
     this.paletteEl.classList.add('palette-swatches');
 
-    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 280, width: 384, height: 96, status: false });
+    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 280, width: 192, height: 192, status: false });
     this.workspace.add(this.paletteContainer);
 
     this.objectsEl = document.createElement('div');
@@ -677,12 +694,17 @@ class Resource {
     ob.y = stream.getUint16LE();
     ob.width = stream.getUint16LE();
     ob.height = stream.getUint16LE();
+    ob.bitmaps = [];
 
     if (ob.imnn) {
-      let name = this.parseBlockName(stream);
-      if (name.substring(0, 2) == 'IM') {
-        stream.advance(4);
-        ob.bitmap = this.parseSmap(stream, ob.width, ob.height);
+      for (var i = 0; i < ob.imnn; i++) {
+        let name = this.parseBlockName(stream);
+        let size = stream.getUint32();
+        let jump = stream.offset + size - 8;
+
+        let bitmap = this.parseSmap(stream, ob.width, ob.height);
+        ob.bitmaps.push(bitmap);
+        stream.seek(jump);
       }
     }
 
@@ -759,6 +781,7 @@ class Resource {
       } else if (name == 'OBIM') {
         let ob = this.parseOBIM(stream);
         obIMs[ob.id] = ob;
+        // if (ob.imnn > 1) console.log(num, ob.id, ob.imnn);
       } else if (name == 'OBCD') {
         let ob = this.parseOBCD(stream);
         obCDs[ob.id] = ob;
@@ -838,33 +861,14 @@ module.exports = Resource;
 },{"./bit_stream":2,"./buffer_stream":4,"./scumm":6}],6:[function(require,module,exports){
 
 var Scumm = {
-  Object: require('./object'),
+  RoomObject: require('./room_object'),
   Room: require('./room')
 };
 
 module.exports = Scumm;
 
-},{"./object":7,"./room":8}],7:[function(require,module,exports){
-
-class RoomObject {
-  constructor(params) {
-    this.id = params.id;
-    this.name = params.name;
-    this.imnn = params.imnn;
-    this.zpnn = params.zpnn;
-    this.flags = params.flags;
-    this.x = params.x;
-    this.y = params.y;
-    this.width = params.width;
-    this.height = params.height;
-    this.bitmap = params.bitmap;
-  }
-}
-
-module.exports = RoomObject;
-
-},{}],8:[function(require,module,exports){
-const RoomObject = require('./object');
+},{"./room":7,"./room_object":8}],7:[function(require,module,exports){
+const RoomObject = require('./room_object');
 
 class Room {
   constructor(params) {
@@ -886,7 +890,6 @@ class Room {
       let obim = this.obIMs[i];
       if (obim) {
         let obcd = this.obCDs[obim.id];
-        // console.log(obcd);
         let ob = new RoomObject({
           id: obim.id,
           name: obcd.name,
@@ -894,7 +897,7 @@ class Room {
           y: obim.y,
           width: obim.width,
           height: obim.height,
-          bitmap: obim.bitmap || null
+          bitmaps: obim.bitmaps
         });
         objects.push(ob);
       }
@@ -905,7 +908,26 @@ class Room {
 
 module.exports = Room;
 
-},{"./object":7}],9:[function(require,module,exports){
+},{"./room_object":8}],8:[function(require,module,exports){
+
+class RoomObject {
+  constructor(params) {
+    this.id = params.id;
+    this.name = params.name;
+    this.imnn = params.imnn;
+    this.zpnn = params.zpnn;
+    this.flags = params.flags;
+    this.x = params.x;
+    this.y = params.y;
+    this.width = params.width;
+    this.height = params.height;
+    this.bitmaps = params.bitmaps;
+  }
+}
+
+module.exports = RoomObject;
+
+},{}],9:[function(require,module,exports){
 
 class Container {
   constructor(params) {

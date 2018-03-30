@@ -128,28 +128,34 @@ class App {
     while (contentEl.firstChild) contentEl.removeChild(contentEl.firstChild);
 
     for (var i = 0; i < objects.length; i++) {
+      // console.log(i);
       let ob = objects[i];
 
-      if (ob.bitmap) {
-        let el = document.createElement('div');
-        el.classList.add('object');
+      if (ob.bitmaps) {
+        // console.log(ob.id, ob.bitmaps.length);
+        for (var j = 0; j < ob.bitmaps.length; j++) {
+          let bitmap = ob.bitmaps[j];
 
-        let imageEl = document.createElement('div');
-        imageEl.classList.add('object-image');
+          let el = document.createElement('div');
+          el.classList.add('object');
 
-        let canvas = this.createCanvasFromBitmap(ob.bitmap, ob.width, ob.height);
-        imageEl.appendChild(canvas);
+          let imageEl = document.createElement('div');
+          imageEl.classList.add('object-image');
 
-        let titleEl = document.createElement('div');
-        titleEl.classList.add('object-title');
-        titleEl.innerHTML = ob.id;
+          let canvas = this.createCanvasFromBitmap(bitmap, ob.width, ob.height);
+          imageEl.appendChild(canvas);
 
-        el.title = ob.name;
+          let titleEl = document.createElement('div');
+          titleEl.classList.add('object-title');
+          titleEl.innerHTML = ob.id;
 
-        el.appendChild(imageEl);
-        el.appendChild(titleEl);
+          el.title = ob.name;
 
-        contentEl.appendChild(el);
+          el.appendChild(imageEl);
+          el.appendChild(titleEl);
+
+          contentEl.appendChild(el);
+        }
       }
     }
 
@@ -184,7 +190,7 @@ class App {
         let room = roomList[i];
         this.list.addItem({ id: room.id, title: room.id.toString().padStart(3, '0') + ' ' + room.name });
       }
-      this.setRoom(47);
+      this.setRoom(6);
     }
   }
 
@@ -263,17 +269,28 @@ class App {
   createElements() {
     this.app = document.getElementById('app');
 
-    this.roomListEl = document.createElement('div');
-    this.roomListEl.classList.add('room-list');
+    let sidebarEl = document.createElement('div');
+    sidebarEl.classList.add('side-bar');
 
     this.list = new List();
     this.list.dom().addEventListener('selected', (e) => {
       let id = e.detail.id;
       this.setRoom(id);
     });
+
+    this.roomListEl = document.createElement('div');
+    this.roomListEl.classList.add('room-list');
+
     this.roomListEl.appendChild(this.list.dom());
 
-    this.app.appendChild(this.roomListEl);
+    let el = document.createElement('div');
+    el.classList.add('room-list-heading');
+    el.innerHTML = 'Rooms';
+    sidebarEl.appendChild(el);
+
+    sidebarEl.appendChild(this.roomListEl);
+
+    this.app.appendChild(sidebarEl);
 
 
     this.workspace = new Workspace({ parent: this.app });
@@ -290,7 +307,7 @@ class App {
     this.paletteEl = document.createElement('div');
     this.paletteEl.classList.add('palette-swatches');
 
-    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 280, width: 384, height: 96, status: false });
+    this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 280, width: 192, height: 192, status: false });
     this.workspace.add(this.paletteContainer);
 
     this.objectsEl = document.createElement('div');

@@ -1,4 +1,4 @@
-const RoomObject = require('./object');
+const RoomObject = require('./room_object');
 
 class Room {
   constructor(params) {
@@ -20,7 +20,6 @@ class Room {
       let obim = this.obIMs[i];
       if (obim) {
         let obcd = this.obCDs[obim.id];
-        // console.log(obcd);
         let ob = new RoomObject({
           id: obim.id,
           name: obcd.name,
@@ -28,7 +27,7 @@ class Room {
           y: obim.y,
           width: obim.width,
           height: obim.height,
-          bitmap: obim.bitmap || null
+          bitmaps: obim.bitmaps
         });
         objects.push(ob);
       }

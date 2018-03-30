@@ -30,7 +30,9 @@ body, html {
 }
 
 .list-item {
-  padding: 4px;
+  /* padding: 4px; */
+  line-height: 1.8em;
+  padding-left: 8px;
   cursor: default;
 }
 
@@ -38,23 +40,33 @@ body, html {
   background-color: cyan;
 }
 
-.room-list {
-  /* position: fixed; */
-  /* left: 0; */
-  /* top: 0; */
+.side-bar {
+  display: flex;
+  flex-direction: column;
   width: 200px;
   height: 100%;
   background-color: white;
   z-index: 9999;
+}
+
+.room-list-heading {
+  padding: 8px;
+  text-align: center;
+}
+
+.room-list {
+  flex: auto;
   overflow: auto;
 }
 
 .container-title {
-  padding: 6px;
+  padding: 4px;
   font-family: sans-serif;
   background-color: rgb(240, 240, 240);
   cursor: default;
   user-select: none;
+  -webkit-user-select: none;
+  text-align: center;
 }
 
 .container-content {

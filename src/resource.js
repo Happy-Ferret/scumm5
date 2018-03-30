@@ -234,12 +234,17 @@ class Resource {
     ob.y = stream.getUint16LE();
     ob.width = stream.getUint16LE();
     ob.height = stream.getUint16LE();
+    ob.bitmaps = [];
 
     if (ob.imnn) {
-      let name = this.parseBlockName(stream);
-      if (name.substring(0, 2) == 'IM') {
-        stream.advance(4);
-        ob.bitmap = this.parseSmap(stream, ob.width, ob.height);
+      for (var i = 0; i < ob.imnn; i++) {
+        let name = this.parseBlockName(stream);
+        let size = stream.getUint32();
+        let jump = stream.offset + size - 8;
+
+        let bitmap = this.parseSmap(stream, ob.width, ob.height);
+        ob.bitmaps.push(bitmap);
+        stream.seek(jump);
       }
     }
 
@@ -319,6 +324,7 @@ class Resource {
       else if (name == 'OBIM') {
         let ob = this.parseOBIM(stream);
         obIMs[ob.id] = ob;
+        // if (ob.imnn > 1) console.log(num, ob.id, ob.imnn);
       }
       else if (name == 'OBCD') {
         let ob = this.parseOBCD(stream);

@@ -1,6 +1,6 @@
 
 var Scumm = {
-  Object: require('./object'),
+  RoomObject: require('./room_object'),
   Room: require('./room')
 }
 
