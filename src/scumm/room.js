@@ -7,11 +7,11 @@ class Room {
     this.width = params.width;
     this.height = params.height;
     this.numObjects = params.numObjects;
-    // this.objects = params.objects;
     this.obIMs = params.obIMs;
     this.obCDs = params.obCDs;
     this.palette = params.palette;
     this.bitmap = params.bitmap;
+    this.transparent = params.transparent;
   }
 
   getObjects() {

@@ -26,6 +26,8 @@ class App {
     this.offscreen.width = 320;
     this.offscreen.height = 200;
 
+    this.canvasImages = [];
+
     this.el = document.getElementById('workspace');
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -42,7 +44,7 @@ class App {
     return temp.buffer;
   }
 
-  createPaletteElement() {
+  updatePalette() {
     let palette = this.palette;
 
     let paletteEl = this.paletteEl;
@@ -56,13 +58,13 @@ class App {
         let swatch = document.createElement('div');
         swatch.classList.add('palette-swatch');
         swatch.style.backgroundColor = 'rgb(' + r + ',' + g + ',' + b + ')';
-        swatch.title = 'Index: ' + i + '\n' + 'RGB: ' + r + ', ' + g + ', ' + b;
+        // swatch.title = 'Index: ' + i + '\n' + 'RGB: ' + r + ', ' + g + ', ' + b;
         paletteEl.appendChild(swatch);
       }
     }
   }
 
-  createRoomImageElement() {
+  updateRoomImage() {
     if (!this.room) return;
     let room = this.room;
 
@@ -100,9 +102,14 @@ class App {
     // ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(this.offscreen, 0, 0, this.offscreen.width, this.offscreen.height);
+
+    for (var i = 0; i < this.canvasImages.length; i++) {
+      let im = this.canvasImages[i];
+      ctx.drawImage(im.image, im.x, im.y);
+    }
   }
 
-  createCanvasFromBitmap(bitmap, width, height) {
+  createCanvasFromBitmap(bitmap, width, height, transparent) {
     let canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
@@ -114,56 +121,58 @@ class App {
         let y = i / width >> 0;
         let index = (y * width + x) * 4;
         let color = bitmap[i];
-        imageData.data[index + 0] = this.palette[color * 3 + 0];
-        imageData.data[index + 1] = this.palette[color * 3 + 1];
-        imageData.data[index + 2] = this.palette[color * 3 + 2];
-        imageData.data[index + 3] = 255;
+        if (color !== transparent) {
+          imageData.data[index + 0] = this.palette[color * 3 + 0];
+          imageData.data[index + 1] = this.palette[color * 3 + 1];
+          imageData.data[index + 2] = this.palette[color * 3 + 2];
+          imageData.data[index + 3] = 255;
+        }
       }
       ctx.putImageData(imageData, 0, 0);
     }
     return canvas;
   }
 
-  createRoomObjects() {
-    let objects = this.room.getObjects();
-    let contentEl = this.objectsEl;
-    while (contentEl.firstChild) contentEl.removeChild(contentEl.firstChild);
+  updateRoomObjects() {
+    this.objects = this.room.getObjects();
+    let objectsEl = this.objectsEl;
+    while (objectsEl.firstChild) objectsEl.removeChild(objectsEl.firstChild);
 
-    for (var i = 0; i < objects.length; i++) {
-      // console.log(i);
-      let ob = objects[i];
+    let list = new List({ type: 'icon', multiple: true });
+
+    for (var i = 0, index = 1; i < this.objects.length; i++) {
+      let ob = this.objects[i];
 
       if (ob.bitmaps) {
-        // console.log(ob.id, ob.bitmaps.length);
         for (var j = 0; j < ob.bitmaps.length; j++) {
           let bitmap = ob.bitmaps[j];
-
-          let el = document.createElement('div');
-          el.classList.add('object');
-
-          let imageEl = document.createElement('div');
-          imageEl.classList.add('object-image');
-
-          let canvas = this.createCanvasFromBitmap(bitmap, ob.width, ob.height);
-          imageEl.appendChild(canvas);
-
-          let titleEl = document.createElement('div');
-          titleEl.classList.add('object-title');
-          titleEl.innerHTML = ob.id;
-
-          el.title = ob.name;
-
-          el.appendChild(imageEl);
-          el.appendChild(titleEl);
-
-          contentEl.appendChild(el);
+          let canvas = this.createCanvasFromBitmap(bitmap, ob.width, ob.height, this.room.transparent);
+          list.addItem({
+            id: index++,
+            title: ob.id,
+            image: canvas,
+            data: ob.id
+          });
         }
       }
     }
 
-    let el = document.createElement('div');
-    el.style.flex = 'auto';
-    contentEl.appendChild(el);
+    this.objectsList = list;
+
+    this.objectsList.dom().addEventListener('change', e => {
+      this.clearCanvasImages();
+      let selection = e.detail.selection;
+      for (var i = 0; i < selection.length; i++) {
+        let item = selection[i];
+        let ob = this.objects.find(element => element.id == item.data);
+        if (ob) {
+          this.addImageToCanvas(item.image, ob.x, ob.y);
+        }
+      }
+      this.updateRoomImage();
+    });
+
+    this.objectsEl.appendChild(list.dom());
   }
 
   setRoom(num) {
@@ -172,12 +181,32 @@ class App {
       this.room = room;
       this.roomno = num;
       this.palette = room.palette;
+      this.canvasImages = [];
 
-      this.createPaletteElement();
-      this.createRoomImageElement();
-      this.createRoomObjects();
+      this.updatePalette();
+      this.updateRoomImage();
+      this.updateRoomObjects();
+    }
+  }
 
-      this.list.select(room.id);
+  addImageToCanvas(image, x, y) {
+    this.canvasImages.push({
+      x: x,
+      y: y,
+      image: image
+    });
+    this.updateRoomImage();
+  }
+
+  clearCanvasImages() {
+    this.canvasImages = [];
+  }
+
+  updateRoomList() {
+    let roomList = this.resource.getRoomList();
+    for (var i = 0; i < roomList.length; i++) {
+      let room = roomList[i];
+      this.list.addItem({ id: room.id, title: room.id.toString().padStart(3, '0') + ' ' + room.name });
     }
   }
 
@@ -187,12 +216,9 @@ class App {
     }
     if (this.files[BUNDLE_FILE]) {
       this.resource.addBundle(this.files[BUNDLE_FILE]);
-      let roomList = this.resource.getRoomList();
-      for (var i = 0; i < roomList.length; i++) {
-        let room = roomList[i];
-        this.list.addItem({ id: room.id, title: room.id.toString().padStart(3, '0') + ' ' + room.name });
-      }
+      this.updateRoomList();
       this.setRoom(6);
+      this.list.select(6);
     }
   }
 
@@ -271,9 +297,12 @@ class App {
     sidebarEl.classList.add('side-bar');
 
     this.list = new List();
-    this.list.dom().addEventListener('selected', e => {
-      let id = e.detail.id;
-      this.setRoom(id);
+    this.list.dom().addEventListener('change', e => {
+      let selection = e.detail.selection;
+      if (selection.length) {
+        // let id = e.detail.id;
+        this.setRoom(selection[0].id);
+      }
     });
 
     this.roomListEl = document.createElement('div');
@@ -310,7 +339,7 @@ class App {
     this.objectsEl = document.createElement('div');
     this.objectsEl.classList.add('objects');
 
-    this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32, width: 320, height: 200 });
+    this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32, width: 344, height: 360 });
     this.workspace.add(this.objectsContainer);
   }
 
@@ -755,6 +784,7 @@ class Resource {
     let numObjects;
     let palette;
     let bitmap;
+    let transparent;
     let obIMs = [];
     let obCDs = [];
 
@@ -785,9 +815,12 @@ class Resource {
       } else if (name == 'OBCD') {
         let ob = this.parseOBCD(stream);
         obCDs[ob.id] = ob;
+      } else if (name == 'TRNS') {
+        transparent = stream.getUint8();
+        // console.log('TRNS', transparent);
       } else {
-        // stream.getBytes(size - 8);
-      }
+          // stream.getBytes(size - 8);
+        }
       stream.seek(jump);
     }
 
@@ -800,7 +833,8 @@ class Resource {
       obIMs: obIMs,
       obCDs: obCDs,
       bitmap: bitmap,
-      palette: palette
+      palette: palette,
+      transparent: transparent
     });
 
     return room;
@@ -877,11 +911,11 @@ class Room {
     this.width = params.width;
     this.height = params.height;
     this.numObjects = params.numObjects;
-    // this.objects = params.objects;
     this.obIMs = params.obIMs;
     this.obCDs = params.obCDs;
     this.palette = params.palette;
     this.bitmap = params.bitmap;
+    this.transparent = params.transparent;
   }
 
   getObjects() {
@@ -990,7 +1024,7 @@ class Container {
   }
 
   onMouseDown(event) {
-    if (event.button == 0) {
+    if (event.button == 0 && event.target === this.titleEl) {
       window.addEventListener('mousemove', this);
       window.addEventListener('mouseup', this);
       window.addEventListener('blur', this);
@@ -1023,22 +1057,51 @@ module.exports = Container;
 },{}],10:[function(require,module,exports){
 
 class List {
-  constructor(params) {
-    this.el = document.createElement('div');
-    this.el.classList.add('list');
-    this.listEl = document.createElement('ul');
-    this.el.appendChild(this.listEl);
+  constructor(params = {}) {
+    this.type = params.type == undefined ? 'list' : params.type;
+    this.multiple = params.multiple;
 
-    this.listEl.addEventListener('mousedown', this);
+    this.el = document.createElement('div');
+
+    this.items = [];
+    this.selection = [];
+
+    let cl;
+    if (this.type == 'icon') {
+      cl = 'icon-list';
+    } else {
+      cl = 'list';
+    }
+    this.el.classList.add(cl);
+
+    this.el.addEventListener('mousedown', this);
   }
 
   createItem(item) {
-    let el = document.createElement('li');
-    el.id = 'item-' + item.id;
-    el.classList.add('list-item');
+    let el = document.createElement('div');
+    el.id = 'item' + item.id;
     el.dataset.id = item.id;
-    el.appendChild(document.createTextNode(item.title));
-    this.listEl.appendChild(el);
+
+    if (this.type == 'icon') {
+      el.classList.add('icon-list-item');
+
+      let imageEl = document.createElement('div');
+      imageEl.classList.add('icon-list-image');
+      imageEl.appendChild(item.image);
+      el.appendChild(imageEl);
+
+      let titleEl = document.createElement('div');
+      titleEl.classList.add('icon-list-title');
+      titleEl.appendChild(document.createTextNode(item.title));
+      el.appendChild(titleEl);
+    } else {
+      el.classList.add('list-item');
+      el.appendChild(document.createTextNode(item.title));
+    }
+
+    this.el.appendChild(el);
+
+    this.items.push(item);
   }
 
   addItem(item) {
@@ -1052,36 +1115,72 @@ class List {
     }
   }
 
+  getItem(id) {
+    return this.items.find(element => element.id == id);
+  }
+
   dom() {
     return this.el;
   }
 
-  select(id) {
-    // console.log('select', id);
-    if (id != undefined) {
-      if (this.selected) {
-        let el = this.listEl.querySelector('#item-' + this.selected);
-        if (el) {
-          el.classList.remove('selected');
-        }
-      }
-      let el = this.listEl.querySelector('#item-' + id);
+  select(id, toggle = false) {
+    // if (clear) this.deselect();
+
+    let item = this.getItem(id);
+    // console.log(item);
+
+    // if (this.selected) {
+    //   let el = this.el.querySelector('#item' + this.selected);
+    //   if (el) {
+    //     el.classList.remove('selected');
+    //   }
+    // }
+
+    if (!this.selection.includes(item)) {
+      let el = this.el.querySelector('#item' + id);
       if (el) {
         el.classList.add('selected');
       }
-      this.selected = id;
+      this.selection.push(item);
     }
+  }
+
+  deselect() {
+    for (var i = 0; i < this.selection.length; i++) {
+      let item = this.selection[i];
+      let el = this.el.querySelector('#item' + item.id);
+      if (el) {
+        el.classList.remove('selected');
+      }
+    }
+    this.selection = [];
   }
 
   onMouseDown(event) {
     let id = event.target.dataset.id;
-    if (id && this.selected !== id) {
-      var myEvent = new CustomEvent('selected', {
-        detail: {
-          id: id
-          // bubbles: true,
-          // cancelable: false
-        } });
+    if (id) {
+      // console.log(id);
+      if (this.multiple) {
+        if (!event.ctrlKey && !event.metaKey) this.deselect();
+      } else {
+        this.deselect();
+      }
+      this.select(id);
+
+      // if (this.multiple) {
+      //   this.select(id, event.ctrlKey || event.metaKey);
+      // } else {
+      //   this.select(id, true);
+      // }
+      var myEvent = new CustomEvent('change', {
+        detail: { selection: this.selection }
+      });
+      this.el.dispatchEvent(myEvent);
+    } else {
+      this.deselect();
+      var myEvent = new CustomEvent('change', {
+        detail: { selection: this.selection }
+      });
       this.el.dispatchEvent(myEvent);
     }
   }

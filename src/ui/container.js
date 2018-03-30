@@ -61,7 +61,7 @@ class Container {
   }
 
   onMouseDown(event) {
-    if (event.button == 0) {
+    if (event.button == 0 && event.target === this.titleEl) {
       window.addEventListener('mousemove', this);
       window.addEventListener('mouseup', this);
       window.addEventListener('blur', this);

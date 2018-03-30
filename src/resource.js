@@ -295,6 +295,7 @@ class Resource {
     let numObjects;
     let palette;
     let bitmap;
+    let transparent;
     let obIMs = [];
     let obCDs = [];
 
@@ -330,6 +331,10 @@ class Resource {
         let ob = this.parseOBCD(stream);
         obCDs[ob.id] = ob;
       }
+      else if (name == 'TRNS') {
+        transparent = stream.getUint8();
+        // console.log('TRNS', transparent);
+      }
       else {
         // stream.getBytes(size - 8);
       }
@@ -345,7 +350,8 @@ class Resource {
       obIMs: obIMs,
       obCDs: obCDs,
       bitmap: bitmap,
-      palette: palette
+      palette: palette,
+      transparent: transparent
     });
 
     return room;
