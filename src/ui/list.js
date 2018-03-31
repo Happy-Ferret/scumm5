@@ -18,6 +18,11 @@ class List {
     this.el.classList.add(cl);
 
     this.el.addEventListener('mousedown', this);
+    this.el.addEventListener('keydown', this);
+    this.el.addEventListener('focus', this);
+
+    // this.el.tabIndex = params.tabIndex || 1;
+    this.el.tabIndex = -1;
   }
 
   createItem(item) {
@@ -67,17 +72,8 @@ class List {
   }
 
   select(id, toggle=false) {
-    // if (clear) this.deselect();
-
+    // console.log('select', id, toggle);
     let item = this.getItem(id);
-    // console.log(item);
-
-    // if (this.selected) {
-    //   let el = this.el.querySelector('#item' + this.selected);
-    //   if (el) {
-    //     el.classList.remove('selected');
-    //   }
-    // }
 
     if (!this.selection.includes(item)) {
       let el = this.el.querySelector('#item' + id);
@@ -85,36 +81,49 @@ class List {
         el.classList.add('selected');
       }
       this.selection.push(item);
+    } else {
+      // console.log('already');
+      if (toggle) {
+        this.deselect(id);
+      }
     }
   }
 
-  deselect() {
-    for (var i = 0; i < this.selection.length; i++) {
-      let item = this.selection[i];
+  deselect(id) {
+    if (id) {
+      let item = this.getItem(id);
       let el = this.el.querySelector('#item' + item.id);
       if (el) {
         el.classList.remove('selected');
       }
+      this.selection = this.selection.filter(element => element !== item);
     }
-    this.selection = [];
+    else {
+      for (var i = 0; i < this.selection.length; i++) {
+        let item = this.selection[i];
+        let el = this.el.querySelector('#item' + item.id);
+        if (el) {
+          el.classList.remove('selected');
+        }
+      }
+      this.selection = [];
+    }
   }
 
   onMouseDown(event) {
     let id = event.target.dataset.id;
     if (id) {
-      // console.log(id);
+
       if (this.multiple) {
-        if (!event.ctrlKey && !event.metaKey) this.deselect();
+        let toggle = event.metaKey || event.ctrlKey;
+        if (!toggle) this.deselect();
+        this.select(id, toggle);
       } else {
         this.deselect();
+        this.select(id);
       }
-      this.select(id);
+      // this.select(id);
 
-      // if (this.multiple) {
-      //   this.select(id, event.ctrlKey || event.metaKey);
-      // } else {
-      //   this.select(id, true);
-      // }
       var myEvent = new CustomEvent('change', {
       	detail: { selection: this.selection }
       });
@@ -128,11 +137,26 @@ class List {
     }
   }
 
+  onKeyDown(event) {
+    console.log(event);
+  }
+
+  onFocus(event) {
+    console.log('focus');
+  }
+
   handleEvent(event) {
     if (event.type == 'mousedown') {
       this.onMouseDown(event);
     }
+    else if (event.type == 'keydown') {
+      this.onKeyDown(event);
+    }
+    else if (event.type == 'focus') {
+      this.onFocus(event);
+    }
   }
+
 }
 
 module.exports = List;

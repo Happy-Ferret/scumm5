@@ -269,6 +269,7 @@ class App {
   }
 
   onKeyDown(event) {
+    // console.log(event.target);
     if (event.key == 'ArrowRight' && !event.repeat) {
       // this.setRoom(this.roomno + 1);
     }
