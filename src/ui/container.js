@@ -35,6 +35,8 @@ class Container {
     }
 
     this.el.addEventListener('mousedown', this);
+
+    // this.el.tabIndex = -1;
   }
 
   dom() {
@@ -76,6 +78,10 @@ class Container {
     this.cancelDrag();
   }
 
+  onBlur(event) {
+    this.cancelDrag();
+  }
+
   handleEvent(event) {
     if (event.type == 'mousedown') {
       this.onMouseDown(event);
@@ -85,6 +91,9 @@ class Container {
     }
     else if (event.type == 'mousemove') {
       this.onMouseMove(event);
+    }
+    else if (event.type == 'focus') {
+      this.onFocus(event);
     }
     else if (event.type == 'blur') {
       this.onBlur(event);

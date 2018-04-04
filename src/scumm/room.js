@@ -11,6 +11,7 @@ class Room {
     this.obCDs = params.obCDs;
     this.palette = params.palette;
     this.bitmap = params.bitmap;
+    this.costumes = params.costumes;
     this.transparent = params.transparent;
   }
 

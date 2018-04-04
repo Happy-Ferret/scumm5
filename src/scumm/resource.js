@@ -1,11 +1,17 @@
-const BufferStream = require('./buffer_stream');
-const BitStream = require('./bit_stream');
-const Scumm = require('./scumm');
+const BufferStream = require('./../buffer_stream');
+const BitStream = require('./../bit_stream');
+const RoomObject = require('./room_object');
+const Room = require('./room');
 
 class Resource {
   constructor() {
     this.rooms = [];
     this.roomNames = [];
+    this.diskBlocks = [];
+    this.offsets = {
+      costume: [],
+      room: []
+    };
   }
 
   addIndex(buffer) {
@@ -17,6 +23,7 @@ class Resource {
   }
 
   getRoom(num) {
+    // console.log('getRoom', num);
     return this.parseRoom(num);
   }
 
@@ -35,12 +42,13 @@ class Resource {
   }
 
   parseIndex(buffer) {
-    console.log('parseIndex');
+    // console.log('parseIndex');
     let stream = new BufferStream(buffer);
 
     while (stream.offset < stream.length) {
       let name = this.parseBlockName(stream);
       let size = stream.getUint32();
+      let jmp = stream.offset + size - 8;
 
       if (name == 'RNAM') { // Room names table
         while (1) {
@@ -51,7 +59,24 @@ class Resource {
             return accumulator + (currentValue != 0xff ? String.fromCharCode(currentValue ^ 0xff) : '');
           }, '');
         }
-      // else if (name == 'DROO') {
+      }
+      else if (name == 'DCOS') {
+        // console.log('DCOS', size);
+        let num = stream.getUint16LE();
+        // console.log('DCOS', num);
+
+        for (var i = 0; i < num; i++) {
+          let roomno = stream.getUint8();
+          this.offsets.costume[i] = { roomno: roomno };
+        }
+        for (var i = 0; i < num; i++) {
+          let offs = stream.getUint32LE();
+          this.offsets.costume[i].offset = offs;
+          // console.log(offs);
+        }
+        // console.log(this.offsets.costume);
+      }
+      else if (name == 'DROO') {
       //   let numitems = stream.getUint16LE();
       //   let roomNos = stream.getBytes(, numitems);
       //
@@ -60,9 +85,9 @@ class Resource {
       //     let offs = stream.getUint32LE();
       //     roomOffsets[i] = offs;
       //   }
-      } else {
-        stream.getBytes(size - 8);
+
       }
+      stream.seek(jmp);
     }
   }
 
@@ -187,9 +212,8 @@ class Resource {
     return pixels;
   }
 
-  parseSmap(stream, width, height) {
+  parseSMAP(stream, width, height) {
     let base = stream.offset;
-
     let name = this.parseBlockName(stream);
     let size = stream.getUint32();
 
@@ -220,8 +244,14 @@ class Resource {
 
   parseOBIM(stream) {
     let name = this.parseBlockName(stream);
-    if (name !== 'IMHD') return;
+    if (name !== 'OBIM') return;
+    // console.log(name);
     let size = stream.getUint32();
+
+    name = this.parseBlockName(stream);
+    if (name !== 'IMHD') return;
+    // console.log(name);
+    size = stream.getUint32();
 
     let ob = {};
 
@@ -242,7 +272,7 @@ class Resource {
         let size = stream.getUint32();
         let jump = stream.offset + size - 8;
 
-        let bitmap = this.parseSmap(stream, ob.width, ob.height);
+        let bitmap = this.parseSMAP(stream, ob.width, ob.height);
         ob.bitmaps.push(bitmap);
         stream.seek(jump);
       }
@@ -252,8 +282,15 @@ class Resource {
   }
 
   parseOBCD(stream) {
-    let name = this.parseBlockName(stream);
-    let size = stream.getUint32();
+    let name, size;
+
+    name = this.parseBlockName(stream);
+    if (name !== 'OBCD') return;
+    // console.log(name);
+    size = stream.getUint32();
+
+    name = this.parseBlockName(stream);
+    size = stream.getUint32();
 
     let ob = {};
 
@@ -269,26 +306,98 @@ class Resource {
     ob.actor_dir = stream.getUint8();
     ob.name = '';
 
+    // VERB
+
     name = this.parseBlockName(stream);
     size = stream.getUint32();
     stream.advance(size - 8);
 
-    stream.advance(8);
+    // OBNA
 
-    for (let b = stream.getUint8(); b !== 0; b = stream.getUint8()) {
+    name = this.parseBlockName(stream);
+    size = stream.getUint32();
+    let end = stream.offset + size - 8;
+
+    for (let b = stream.getUint8(); b !== 0 && stream.offset < end; b = stream.getUint8()) {
       ob.name += String.fromCharCode(b);
     }
 
     return ob;
   }
 
+  parseCOST(stream) {
+    let name = this.parseBlockName(stream);
+    if (name !== 'COST') return;
+    let size = stream.getUint32();
+    console.log(name, stream.length);
+
+    let base = stream.offset - 8 + 2;
+    // let base = stream.offset;
+
+    let numAnim = stream.getUint8();
+    console.log('numAnim', numAnim);
+    let format = stream.getUint8();
+    let numColors = (format & 1 ? 32 : 16);
+
+    // console.log('format', (format & 0x7e).toString(16), format.toString(16));
+
+    let palette = stream.getBytes(numColors);
+
+    stream.advance(2); // skip cmds offset 16bitLE
+
+    let limbOffsets = [];
+    for (var i = 0; i < 16; i++) {
+      let value = stream.getUint16LE();
+      limbOffsets.push(value);
+    }
+    console.log(limbOffsets);
+
+    let animOffsets = []
+    for (var i = 0; i < numAnim; i++) {
+      animOffsets.push(stream.getUint16LE());
+    }
+    console.log(animOffsets);
+
+    let stop;
+
+    for (var i = 0; i < limbOffsets.length; i++) {
+    // for (var i = 0; i < 1; i++) {
+      let offs = limbOffsets[i];
+      if (offs === stop) break;
+
+      stream.seek(base + offs);
+
+      let picOffset = stream.getUint16LE();
+
+      if (base + picOffset < stream.length) {
+        stream.seek(base + picOffset);
+        let width = stream.getUint16LE();
+        let height = stream.getUint16LE();
+        console.log(base + picOffset, picOffset, 'w', width, 'h', height);
+      }
+
+      if (i == 0) stop = picOffset;
+
+      // if (i < limbOffsets.length - 1 && picOffset == limbOffsets[i + 1]) {
+      //   break;
+      // }
+
+    }
+
+    for (var i = 0; i < animOffsets.length; i++) {
+      let offs = animOffsets[i];
+      stream.seek(base + offs);
+      let mask = stream.getUint16LE();
+      // console.log(mask.toString(2).padStart(16, '0'));
+    }
+
+  }
+
   parseRoom(num) {
-    let block = this.rooms[num];
+    let block = this.diskBlocks[num - 1];
     if (!block) return;
 
     let stream = new BufferStream(block.buffer);
-
-    let end = block.length;
 
     let width;
     let height;
@@ -298,11 +407,21 @@ class Resource {
     let transparent;
     let obIMs = [];
     let obCDs = [];
+    let costumes = [];
 
-    while (stream.offset < end) {
+    let name = this.parseBlockName(stream);
+    if (name !== 'ROOM') return;
+    let size = stream.getUint32();
+
+    // console.log('COSTUME OFFSETS');
+    // let offsets = this.offsets.costume.filter(element => element.roomno == num);
+    // console.log(offsets);
+
+    while (stream.offset < block.length) {
       let name = this.parseBlockName(stream);
       let size = stream.getUint32();
       let jump = stream.offset + size - 8;
+      // console.log(name);
 
       if (name == 'RMHD') {
         width = stream.getUint16LE();
@@ -311,7 +430,7 @@ class Resource {
       }
       else if (name == 'RMIM') {
         stream.advance(18);
-        bitmap = this.parseSmap(stream, width, height);
+        bitmap = this.parseSMAP(stream, width, height);
       }
       else if (name == 'CLUT') {
         palette = [];
@@ -323,25 +442,31 @@ class Resource {
         }
       }
       else if (name == 'OBIM') {
+        // console.log('OBIM');
+        stream.backup(8);
         let ob = this.parseOBIM(stream);
         obIMs[ob.id] = ob;
-        // if (ob.imnn > 1) console.log(num, ob.id, ob.imnn);
       }
       else if (name == 'OBCD') {
+        // console.log('OBCD');
+        stream.backup(8);
         let ob = this.parseOBCD(stream);
         obCDs[ob.id] = ob;
       }
       else if (name == 'TRNS') {
         transparent = stream.getUint8();
-        // console.log('TRNS', transparent);
+      }
+      else if (name == 'COST') {
+        stream.backup(8);
+        let costume = this.parseCOST(stream);
+        costumes.push(costume);
       }
       else {
-        // stream.getBytes(size - 8);
       }
       stream.seek(jump);
     }
 
-    let room = new Scumm.Room({
+    let room = new Room({
       id: num,
       name: this.roomNames[num],
       width: width,
@@ -349,8 +474,9 @@ class Resource {
       numObjects: numObjects,
       obIMs: obIMs,
       obCDs: obCDs,
-      bitmap: bitmap,
       palette: palette,
+      bitmap: bitmap,
+      costumes: costumes,
       transparent: transparent
     });
 
@@ -360,17 +486,17 @@ class Resource {
   getRoomList() {
     // console.log('getRoomList');
     let result = [];
-    for (var i = 0; i < this.rooms.length; i++) {
-      let room = this.rooms[i];
-      if (room) {
-        result.push({ id: i, name: this.roomNames[i] });
-      }
+    for (var i = 0; i < this.numrooms; i++) {
+      // let room = this.rooms[i];
+      // if (room) {
+        result.push({ id: i+1, name: this.roomNames[i+1] });
+      // }
     }
     return result;
   }
 
   parseBundle(buffer) {
-    console.log('parseBundle');
+    // console.log('parseBundle');
 
     let stream = new BufferStream(buffer);
 
@@ -378,31 +504,70 @@ class Resource {
     let size = stream.getUint32();
 
     if (name != 'LECF') return;
+    // console.log(name);
 
-    name = this.parseBlockName(stream);
+    name = this.parseBlockName(stream); // LOFF
     size = stream.getUint32();
 
-    if (name == 'LOFF') {
-      this.numrooms = stream.getUint8();
+    this.numrooms = stream.getUint8();
+    stream.advance(size - 8 - 1);
 
-      let offsets = [];
+    // console.log(name);
 
-      for (var i = 0; i < this.numrooms; i++) {
-        let id = stream.getUint8();
-        let offs = stream.getUint32LE();
-        offsets[id] = offs;
-      }
+    while (stream.offset < stream.length) {
+      let name = this.parseBlockName(stream); // LFLF
+      let size = stream.getUint32();
 
-      for (var i = 0; i < offsets.length; i++) {
-        let offs = offsets[i];
-        if (offs != undefined) {
-          stream.seek(offs);
-          let name = this.parseBlockName(stream);
-          let size = stream.getUint32();
-          this.rooms[i] = stream.getBytes(size - 8);
-        }
-      }
+      // console.log(name);
+      let block = stream.getBytes(size - 8);
+
+      this.diskBlocks.push(block);
     }
+
+    // if (name == 'LOFF') {
+    //   this.numrooms = stream.getUint8();
+    //
+    //   let offsets = [];
+    //
+    //   for (var i = 0; i < this.numrooms; i++) {
+    //     let roomid = stream.getUint8();
+    //     let offs = stream.getUint32LE();
+    //     offsets[roomid] = offs;
+    //   }
+    //
+    //   // Save out ROOM blocks
+    //
+    //   for (var i = 0; i < offsets.length; i++) {
+    //     let offs = offsets[i];
+    //     if (offs != undefined) {
+    //       stream.seek(offs);
+    //       let name = this.parseBlockName(stream);
+    //       let size = stream.getUint32();
+    //       this.rooms[i] = stream.getBytes(size - 8);
+    //     }
+    //   }
+    //
+    //   // Save out COST blocks
+    //
+    //   // for (var i = 0; i < offsets.length; i++) {
+    //   //   stream.seek(offs - 8);
+    //   //   name = this.parseBlockName(stream);
+    //   //   size = stream.getUint32();
+    //   //
+    //   //   let end = stream.offset + size - 8;
+    //   //
+    //   //   while (stream.offset <= end) {
+    //   //     if (stream.offset + 8 > stream.length) break;
+    //   //     let name = this.parseBlockName(stream);
+    //   //     let size = stream.getUint32();
+    //   //     if (name == 'COST') {
+    //   //       console.log(i, name);
+    //   //     }
+    //   //     stream.advance(size - 8);
+    //   //   }
+    //   // }
+    //
+    // }
   }
 
 }

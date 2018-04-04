@@ -4,8 +4,8 @@ const Container = require('./ui/container');
 const Workspace = require('./ui/workspace');
 const List = require('./ui/list');
 
-const Resource = require('./resource');
-const Scumm = require('./scumm');
+const Resource = require('./scumm/resource');
+// const Scumm = require('./scumm');
 const Bitmap = require('./bitmap');
 
 const INDEX_FILE = 'monkey2.000';
@@ -90,23 +90,25 @@ class App {
 
       ctx.putImageData(imageData, 0, 0);
 
-      this.imageContainer.setSize(width, height);
+      for (var i = 0; i < this.canvasImages.length; i++) {
+        let im = this.canvasImages[i];
+        ctx.drawImage(im.image, im.x, im.y);
+      }
     }
+
+    let scale = 1;
 
     let canvas = this.canvas;
     canvas.title = room.name;
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
 
     ctx = canvas.getContext('2d');
-    // ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(this.offscreen, 0, 0, this.offscreen.width, this.offscreen.height);
+    ctx.drawImage(this.offscreen, 0, 0, this.offscreen.width * scale, this.offscreen.height * scale);
 
-    for (var i = 0; i < this.canvasImages.length; i++) {
-      let im = this.canvasImages[i];
-      ctx.drawImage(im.image, im.x, im.y);
-    }
+    this.imageContainer.setSize(width * scale, height * scale);
   }
 
   createCanvasFromBitmap(bitmap, width, height, transparent) {
@@ -134,14 +136,14 @@ class App {
   }
 
   updateRoomObjects() {
-    this.objects = this.room.getObjects();
-    let objectsEl = this.objectsEl;
+    this.roomObjects = this.room.getObjects();
+    let objectsEl = this.roomObjectsEl;
     while (objectsEl.firstChild) objectsEl.removeChild(objectsEl.firstChild);
 
-    let list = new List({ type: 'icon', multiple: true });
+    let list = new List({ type: 'icon-list', multiple: true });
 
-    for (var i = 0, index = 1; i < this.objects.length; i++) {
-      let ob = this.objects[i];
+    for (var i = 0, index = 1; i < this.roomObjects.length; i++) {
+      let ob = this.roomObjects[i];
 
       if (ob.bitmaps) {
         for (var j = 0; j < ob.bitmaps.length; j++) {
@@ -157,14 +159,14 @@ class App {
       }
     }
 
-    this.objectsList = list;
+    this.roomObjectsList = list;
 
-    this.objectsList.dom().addEventListener('change', e => {
+    this.roomObjectsList.dom().addEventListener('change', e => {
       this.clearCanvasImages();
       let selection = e.detail.selection;
       for (var i = 0; i < selection.length; i++) {
         let item = selection[i];
-        let ob = this.objects.find(element => element.id == item.data);
+        let ob = this.roomObjects.find(element => element.id == item.data);
         if (ob) {
           this.addImageToCanvas(item.image, ob.x, ob.y);
         }
@@ -172,10 +174,11 @@ class App {
       this.updateRoomImage();
     });
 
-    this.objectsEl.appendChild(list.dom());
+    this.roomObjectsEl.appendChild(list.dom());
   }
 
   setRoom(num) {
+    if (this.roomno == num) return;
     let room = this.resource.getRoom(num);
     if (room) {
       this.room = room;
@@ -206,7 +209,7 @@ class App {
     let roomList = this.resource.getRoomList();
     for (var i = 0; i < roomList.length; i++) {
       let room = roomList[i];
-      this.list.addItem({ id: room.id, title: room.id.toString().padStart(3, '0') + ' ' + room.name });
+      this.roomList.addItem({ id: room.id, title: room.id.toString().padStart(3, '0') + ' ' + room.name });
     }
   }
 
@@ -217,8 +220,8 @@ class App {
     if (this.files[BUNDLE_FILE]) {
       this.resource.addBundle(this.files[BUNDLE_FILE]);
       this.updateRoomList();
-      this.setRoom(6);
-      this.list.select(6);
+      this.setRoom(1);
+      this.roomList.select(0);
     }
   }
 
@@ -232,7 +235,6 @@ class App {
     this.filesToLoad--;
 
     if (this.filesToLoad == 0) {
-      console.log('done');
       this.parseFiles();
     }
   }
@@ -297,8 +299,9 @@ class App {
     let sidebarEl = document.createElement('div');
     sidebarEl.classList.add('side-bar');
 
-    this.list = new List();
-    this.list.dom().addEventListener('change', e => {
+    this.roomList = new List();
+    this.roomList.dom().addEventListener('change', e => {
+      // console.log('change');
       let selection = e.detail.selection;
       if (selection.length) {
         // let id = e.detail.id;
@@ -309,12 +312,12 @@ class App {
     this.roomListEl = document.createElement('div');
     this.roomListEl.classList.add('room-list');
 
-    this.roomListEl.appendChild(this.list.dom());
+    this.roomListEl.appendChild(this.roomList.dom());
 
     let el = document.createElement('div');
-    el.classList.add('room-list-heading');
-    el.innerHTML = 'Rooms';
-    sidebarEl.appendChild(el);
+    // el.classList.add('room-list-heading');
+    // el.innerHTML = 'Rooms';
+    // sidebarEl.appendChild(el);
 
     sidebarEl.appendChild(this.roomListEl);
 
@@ -337,11 +340,15 @@ class App {
     this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 280, width: 192, height: 192, status: false });
     this.workspace.add(this.paletteContainer);
 
-    this.objectsEl = document.createElement('div');
-    this.objectsEl.classList.add('objects');
+    this.roomObjectsEl = document.createElement('div');
+    this.roomObjectsEl.classList.add('room-objects');
+    this.roomObjectsContainer = new Container({ title: 'Object Images', content: this.roomObjectsEl, x: 256, y: 280, width: 336, height: 278 });
+    this.workspace.add(this.roomObjectsContainer);
 
-    this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32, width: 344, height: 360 });
-    this.workspace.add(this.objectsContainer);
+    this.costumesEl = document.createElement('div');
+    this.costumesEl.classList.add('costumes');
+    this.costumesContainer = new Container({ title: 'Costumes', content: this.costumesEl, x: 624, y: 280, width: 336, height: 278 });
+    this.workspace.add(this.costumesContainer);
   }
 
   initEventListeners() {
@@ -359,7 +366,7 @@ global.App = App;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"./bitmap":3,"./resource":5,"./scumm":6,"./ui/container":9,"./ui/list":10,"./ui/workspace":11}],2:[function(require,module,exports){
+},{"./bitmap":3,"./scumm/resource":5,"./ui/container":8,"./ui/list":9,"./ui/workspace":10}],2:[function(require,module,exports){
 
 class BitStream {
   constructor(stream) {
@@ -493,14 +500,20 @@ class BufferStream {
 module.exports = BufferStream;
 
 },{}],5:[function(require,module,exports){
-const BufferStream = require('./buffer_stream');
-const BitStream = require('./bit_stream');
-const Scumm = require('./scumm');
+const BufferStream = require('./../buffer_stream');
+const BitStream = require('./../bit_stream');
+const RoomObject = require('./room_object');
+const Room = require('./room');
 
 class Resource {
   constructor() {
     this.rooms = [];
     this.roomNames = [];
+    this.diskBlocks = [];
+    this.offsets = {
+      costume: [],
+      room: []
+    };
   }
 
   addIndex(buffer) {
@@ -512,6 +525,7 @@ class Resource {
   }
 
   getRoom(num) {
+    // console.log('getRoom', num);
     return this.parseRoom(num);
   }
 
@@ -525,12 +539,13 @@ class Resource {
   }
 
   parseIndex(buffer) {
-    console.log('parseIndex');
+    // console.log('parseIndex');
     let stream = new BufferStream(buffer);
 
     while (stream.offset < stream.length) {
       let name = this.parseBlockName(stream);
       let size = stream.getUint32();
+      let jmp = stream.offset + size - 8;
 
       if (name == 'RNAM') {
         // Room names table
@@ -542,7 +557,22 @@ class Resource {
             return accumulator + (currentValue != 0xff ? String.fromCharCode(currentValue ^ 0xff) : '');
           }, '');
         }
-        // else if (name == 'DROO') {
+      } else if (name == 'DCOS') {
+        // console.log('DCOS', size);
+        let num = stream.getUint16LE();
+        // console.log('DCOS', num);
+
+        for (var i = 0; i < num; i++) {
+          let roomno = stream.getUint8();
+          this.offsets.costume[i] = { roomno: roomno };
+        }
+        for (var i = 0; i < num; i++) {
+          let offs = stream.getUint32LE();
+          this.offsets.costume[i].offset = offs;
+          // console.log(offs);
+        }
+        // console.log(this.offsets.costume);
+      } else if (name == 'DROO') {
         //   let numitems = stream.getUint16LE();
         //   let roomNos = stream.getBytes(, numitems);
         //
@@ -551,9 +581,9 @@ class Resource {
         //     let offs = stream.getUint32LE();
         //     roomOffsets[i] = offs;
         //   }
-      } else {
-        stream.getBytes(size - 8);
+
       }
+      stream.seek(jmp);
     }
   }
 
@@ -679,9 +709,8 @@ class Resource {
     return pixels;
   }
 
-  parseSmap(stream, width, height) {
+  parseSMAP(stream, width, height) {
     let base = stream.offset;
-
     let name = this.parseBlockName(stream);
     let size = stream.getUint32();
 
@@ -710,8 +739,14 @@ class Resource {
 
   parseOBIM(stream) {
     let name = this.parseBlockName(stream);
-    if (name !== 'IMHD') return;
+    if (name !== 'OBIM') return;
+    // console.log(name);
     let size = stream.getUint32();
+
+    name = this.parseBlockName(stream);
+    if (name !== 'IMHD') return;
+    // console.log(name);
+    size = stream.getUint32();
 
     let ob = {};
 
@@ -732,7 +767,7 @@ class Resource {
         let size = stream.getUint32();
         let jump = stream.offset + size - 8;
 
-        let bitmap = this.parseSmap(stream, ob.width, ob.height);
+        let bitmap = this.parseSMAP(stream, ob.width, ob.height);
         ob.bitmaps.push(bitmap);
         stream.seek(jump);
       }
@@ -742,8 +777,15 @@ class Resource {
   }
 
   parseOBCD(stream) {
-    let name = this.parseBlockName(stream);
-    let size = stream.getUint32();
+    let name, size;
+
+    name = this.parseBlockName(stream);
+    if (name !== 'OBCD') return;
+    // console.log(name);
+    size = stream.getUint32();
+
+    name = this.parseBlockName(stream);
+    size = stream.getUint32();
 
     let ob = {};
 
@@ -759,26 +801,96 @@ class Resource {
     ob.actor_dir = stream.getUint8();
     ob.name = '';
 
+    // VERB
+
     name = this.parseBlockName(stream);
     size = stream.getUint32();
     stream.advance(size - 8);
 
-    stream.advance(8);
+    // OBNA
 
-    for (let b = stream.getUint8(); b !== 0; b = stream.getUint8()) {
+    name = this.parseBlockName(stream);
+    size = stream.getUint32();
+    let end = stream.offset + size - 8;
+
+    for (let b = stream.getUint8(); b !== 0 && stream.offset < end; b = stream.getUint8()) {
       ob.name += String.fromCharCode(b);
     }
 
     return ob;
   }
 
+  parseCOST(stream) {
+    let name = this.parseBlockName(stream);
+    if (name !== 'COST') return;
+    let size = stream.getUint32();
+    console.log(name, stream.length);
+
+    let base = stream.offset - 8 + 2;
+    // let base = stream.offset;
+
+    let numAnim = stream.getUint8();
+    console.log('numAnim', numAnim);
+    let format = stream.getUint8();
+    let numColors = format & 1 ? 32 : 16;
+
+    // console.log('format', (format & 0x7e).toString(16), format.toString(16));
+
+    let palette = stream.getBytes(numColors);
+
+    stream.advance(2); // skip cmds offset 16bitLE
+
+    let limbOffsets = [];
+    for (var i = 0; i < 16; i++) {
+      let value = stream.getUint16LE();
+      limbOffsets.push(value);
+    }
+    console.log(limbOffsets);
+
+    let animOffsets = [];
+    for (var i = 0; i < numAnim; i++) {
+      animOffsets.push(stream.getUint16LE());
+    }
+    console.log(animOffsets);
+
+    let stop;
+
+    for (var i = 0; i < limbOffsets.length; i++) {
+      // for (var i = 0; i < 1; i++) {
+      let offs = limbOffsets[i];
+      if (offs === stop) break;
+
+      stream.seek(base + offs);
+
+      let picOffset = stream.getUint16LE();
+
+      if (base + picOffset < stream.length) {
+        stream.seek(base + picOffset);
+        let width = stream.getUint16LE();
+        let height = stream.getUint16LE();
+        console.log(base + picOffset, picOffset, 'w', width, 'h', height);
+      }
+
+      if (i == 0) stop = picOffset;
+
+      // if (i < limbOffsets.length - 1 && picOffset == limbOffsets[i + 1]) {
+      //   break;
+      // }
+    }
+
+    for (var i = 0; i < animOffsets.length; i++) {
+      let offs = animOffsets[i];
+      stream.seek(base + offs);
+      let mask = stream.getUint16LE();
+      // console.log(mask.toString(2).padStart(16, '0'));
+    }
+  }
+
   parseRoom(num) {
-    let block = this.rooms[num];
+    let block = this.diskBlocks[num - 1];
     if (!block) return;
 
     let stream = new BufferStream(block.buffer);
-
-    let end = block.length;
 
     let width;
     let height;
@@ -788,11 +900,21 @@ class Resource {
     let transparent;
     let obIMs = [];
     let obCDs = [];
+    let costumes = [];
 
-    while (stream.offset < end) {
+    let name = this.parseBlockName(stream);
+    if (name !== 'ROOM') return;
+    let size = stream.getUint32();
+
+    // console.log('COSTUME OFFSETS');
+    // let offsets = this.offsets.costume.filter(element => element.roomno == num);
+    // console.log(offsets);
+
+    while (stream.offset < block.length) {
       let name = this.parseBlockName(stream);
       let size = stream.getUint32();
       let jump = stream.offset + size - 8;
+      // console.log(name);
 
       if (name == 'RMHD') {
         width = stream.getUint16LE();
@@ -800,7 +922,7 @@ class Resource {
         numObjects = stream.getUint16LE();
       } else if (name == 'RMIM') {
         stream.advance(18);
-        bitmap = this.parseSmap(stream, width, height);
+        bitmap = this.parseSMAP(stream, width, height);
       } else if (name == 'CLUT') {
         palette = [];
         for (var i = 0; i < 256; i++) {
@@ -810,22 +932,26 @@ class Resource {
           palette.push(r, g, b);
         }
       } else if (name == 'OBIM') {
+        // console.log('OBIM');
+        stream.backup(8);
         let ob = this.parseOBIM(stream);
         obIMs[ob.id] = ob;
-        // if (ob.imnn > 1) console.log(num, ob.id, ob.imnn);
       } else if (name == 'OBCD') {
+        // console.log('OBCD');
+        stream.backup(8);
         let ob = this.parseOBCD(stream);
         obCDs[ob.id] = ob;
       } else if (name == 'TRNS') {
         transparent = stream.getUint8();
-        // console.log('TRNS', transparent);
-      } else {
-          // stream.getBytes(size - 8);
-        }
+      } else if (name == 'COST') {
+        stream.backup(8);
+        let costume = this.parseCOST(stream);
+        costumes.push(costume);
+      } else {}
       stream.seek(jump);
     }
 
-    let room = new Scumm.Room({
+    let room = new Room({
       id: num,
       name: this.roomNames[num],
       width: width,
@@ -833,8 +959,9 @@ class Resource {
       numObjects: numObjects,
       obIMs: obIMs,
       obCDs: obCDs,
-      bitmap: bitmap,
       palette: palette,
+      bitmap: bitmap,
+      costumes: costumes,
       transparent: transparent
     });
 
@@ -844,17 +971,17 @@ class Resource {
   getRoomList() {
     // console.log('getRoomList');
     let result = [];
-    for (var i = 0; i < this.rooms.length; i++) {
-      let room = this.rooms[i];
-      if (room) {
-        result.push({ id: i, name: this.roomNames[i] });
-      }
+    for (var i = 0; i < this.numrooms; i++) {
+      // let room = this.rooms[i];
+      // if (room) {
+      result.push({ id: i + 1, name: this.roomNames[i + 1] });
+      // }
     }
     return result;
   }
 
   parseBundle(buffer) {
-    console.log('parseBundle');
+    // console.log('parseBundle');
 
     let stream = new BufferStream(buffer);
 
@@ -862,47 +989,77 @@ class Resource {
     let size = stream.getUint32();
 
     if (name != 'LECF') return;
+    // console.log(name);
 
-    name = this.parseBlockName(stream);
+    name = this.parseBlockName(stream); // LOFF
     size = stream.getUint32();
 
-    if (name == 'LOFF') {
-      this.numrooms = stream.getUint8();
+    this.numrooms = stream.getUint8();
+    stream.advance(size - 8 - 1);
 
-      let offsets = [];
+    // console.log(name);
 
-      for (var i = 0; i < this.numrooms; i++) {
-        let id = stream.getUint8();
-        let offs = stream.getUint32LE();
-        offsets[id] = offs;
-      }
+    while (stream.offset < stream.length) {
+      let name = this.parseBlockName(stream); // LFLF
+      let size = stream.getUint32();
 
-      for (var i = 0; i < offsets.length; i++) {
-        let offs = offsets[i];
-        if (offs != undefined) {
-          stream.seek(offs);
-          let name = this.parseBlockName(stream);
-          let size = stream.getUint32();
-          this.rooms[i] = stream.getBytes(size - 8);
-        }
-      }
+      // console.log(name);
+      let block = stream.getBytes(size - 8);
+
+      this.diskBlocks.push(block);
     }
+
+    // if (name == 'LOFF') {
+    //   this.numrooms = stream.getUint8();
+    //
+    //   let offsets = [];
+    //
+    //   for (var i = 0; i < this.numrooms; i++) {
+    //     let roomid = stream.getUint8();
+    //     let offs = stream.getUint32LE();
+    //     offsets[roomid] = offs;
+    //   }
+    //
+    //   // Save out ROOM blocks
+    //
+    //   for (var i = 0; i < offsets.length; i++) {
+    //     let offs = offsets[i];
+    //     if (offs != undefined) {
+    //       stream.seek(offs);
+    //       let name = this.parseBlockName(stream);
+    //       let size = stream.getUint32();
+    //       this.rooms[i] = stream.getBytes(size - 8);
+    //     }
+    //   }
+    //
+    //   // Save out COST blocks
+    //
+    //   // for (var i = 0; i < offsets.length; i++) {
+    //   //   stream.seek(offs - 8);
+    //   //   name = this.parseBlockName(stream);
+    //   //   size = stream.getUint32();
+    //   //
+    //   //   let end = stream.offset + size - 8;
+    //   //
+    //   //   while (stream.offset <= end) {
+    //   //     if (stream.offset + 8 > stream.length) break;
+    //   //     let name = this.parseBlockName(stream);
+    //   //     let size = stream.getUint32();
+    //   //     if (name == 'COST') {
+    //   //       console.log(i, name);
+    //   //     }
+    //   //     stream.advance(size - 8);
+    //   //   }
+    //   // }
+    //
+    // }
   }
 
 }
 
 module.exports = Resource;
 
-},{"./bit_stream":2,"./buffer_stream":4,"./scumm":6}],6:[function(require,module,exports){
-
-var Scumm = {
-  RoomObject: require('./room_object'),
-  Room: require('./room')
-};
-
-module.exports = Scumm;
-
-},{"./room":7,"./room_object":8}],7:[function(require,module,exports){
+},{"./../bit_stream":2,"./../buffer_stream":4,"./room":6,"./room_object":7}],6:[function(require,module,exports){
 const RoomObject = require('./room_object');
 
 class Room {
@@ -916,6 +1073,7 @@ class Room {
     this.obCDs = params.obCDs;
     this.palette = params.palette;
     this.bitmap = params.bitmap;
+    this.costumes = params.costumes;
     this.transparent = params.transparent;
   }
 
@@ -943,7 +1101,7 @@ class Room {
 
 module.exports = Room;
 
-},{"./room_object":8}],8:[function(require,module,exports){
+},{"./room_object":7}],7:[function(require,module,exports){
 
 class RoomObject {
   constructor(params) {
@@ -962,7 +1120,7 @@ class RoomObject {
 
 module.exports = RoomObject;
 
-},{}],9:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 
 class Container {
   constructor(params) {
@@ -1000,6 +1158,8 @@ class Container {
     }
 
     this.el.addEventListener('mousedown', this);
+
+    // this.el.tabIndex = -1;
   }
 
   dom() {
@@ -1040,6 +1200,10 @@ class Container {
     this.cancelDrag();
   }
 
+  onBlur(event) {
+    this.cancelDrag();
+  }
+
   handleEvent(event) {
     if (event.type == 'mousedown') {
       this.onMouseDown(event);
@@ -1047,6 +1211,8 @@ class Container {
       this.onMouseUp(event);
     } else if (event.type == 'mousemove') {
       this.onMouseMove(event);
+    } else if (event.type == 'focus') {
+      this.onFocus(event);
     } else if (event.type == 'blur') {
       this.onBlur(event);
     }
@@ -1055,31 +1221,26 @@ class Container {
 
 module.exports = Container;
 
-},{}],10:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 
 class List {
   constructor(params = {}) {
-    this.type = params.type == undefined ? 'list' : params.type;
+    // this.type = params.type == undefined ? 'list' : params.type;
+    this.type = params.type || 'basic-list';
     this.multiple = params.multiple;
-
-    this.el = document.createElement('div');
-
     this.items = [];
     this.selection = [];
 
-    let cl;
-    if (this.type == 'icon') {
-      cl = 'icon-list';
-    } else {
-      cl = 'list';
-    }
-    this.el.classList.add(cl);
+    this.el = document.createElement('div');
+    this.el.classList.add('list');
+    this.listEl = document.createElement('div');
+    this.listEl.classList.add(this.type);
+    this.el.appendChild(this.listEl);
 
     this.el.addEventListener('mousedown', this);
     this.el.addEventListener('keydown', this);
     this.el.addEventListener('focus', this);
 
-    // this.el.tabIndex = params.tabIndex || 1;
     this.el.tabIndex = -1;
   }
 
@@ -1088,7 +1249,7 @@ class List {
     el.id = 'item' + item.id;
     el.dataset.id = item.id;
 
-    if (this.type == 'icon') {
+    if (this.type == 'icon-list') {
       el.classList.add('icon-list-item');
 
       let imageEl = document.createElement('div');
@@ -1101,27 +1262,27 @@ class List {
       titleEl.appendChild(document.createTextNode(item.title));
       el.appendChild(titleEl);
     } else {
-      el.classList.add('list-item');
+      el.classList.add('basic-list-item');
       el.appendChild(document.createTextNode(item.title));
     }
 
-    this.el.appendChild(el);
+    this.listEl.appendChild(el);
 
     this.items.push(item);
   }
 
-  addItem(item) {
-    this.createItem(item);
-  }
-
-  addItems(items) {
-    for (var i = 0; i < items.length; i++) {
-      let item = items[i];
-      this.createItem(item);
+  addItem(candidate) {
+    if (candidate instanceof Array) {
+      for (var i = 0; i < candidate.length; i++) {
+        let item = candidate[i];
+        this.createItem(item);
+      }
+    } else {
+      this.createItem(candidate);
     }
   }
 
-  getItem(id) {
+  getItemById(id) {
     return this.items.find(element => element.id == id);
   }
 
@@ -1129,77 +1290,144 @@ class List {
     return this.el;
   }
 
-  select(id, toggle = false) {
-    // console.log('select', id, toggle);
-    let item = this.getItem(id);
+  select(index, toggle = false) {
+    let item = this.items[index];
 
     if (!this.selection.includes(item)) {
-      let el = this.el.querySelector('#item' + id);
+      let el = this.listEl.querySelector('#item' + item.id);
       if (el) {
         el.classList.add('selected');
       }
       this.selection.push(item);
+      // console.log(el.offsetLeft, el.offsetTop);
+      let left = el.offsetLeft;
+      let top = el.offsetTop;
+      let width = el.offsetWidth;
+      let height = el.offsetHeight;
+      // console.log(this.el.offsetHeight);
+      if (top + height > this.el.scrollTop + this.el.offsetHeight) {
+        // console.log('outside', top+ height);
+        this.el.scrollTop = el.offsetTop - this.el.offsetHeight + height;
+      } else if (top < this.el.scrollTop) {
+        this.el.scrollTop = top;
+      }
     } else {
-      // console.log('already');
       if (toggle) {
-        this.deselect(id);
+        this.deselect(index);
       }
     }
+
+    // let rect = this.el.getBoundingClientRect();
+    // console.log(rect);
+
+    this.announceChange();
   }
 
-  deselect(id) {
-    if (id) {
-      let item = this.getItem(id);
-      let el = this.el.querySelector('#item' + item.id);
-      if (el) {
-        el.classList.remove('selected');
+  deselect(index) {
+    if (index !== undefined) {
+      let item = this.items[index];
+      if (item) {
+        let el = this.listEl.querySelector('#item' + item.id);
+        if (el) {
+          el.classList.remove('selected');
+        }
+        this.selection = this.selection.filter(element => element !== item);
       }
-      this.selection = this.selection.filter(element => element !== item);
     } else {
       for (var i = 0; i < this.selection.length; i++) {
         let item = this.selection[i];
-        let el = this.el.querySelector('#item' + item.id);
+        let el = this.listEl.querySelector('#item' + item.id);
         if (el) {
           el.classList.remove('selected');
         }
       }
       this.selection = [];
     }
+    this.announceChange();
+  }
+
+  selectNext() {
+    let index = 0;
+    if (this.selection.length) {
+      let item = this.selection[this.selection.length - 1];
+      index = this.items.indexOf(item) + 1;
+      if (index > this.items.length - 1) index = this.items.length - 1;
+      this.deselect();
+    }
+    this.select(index);
+    // this.announceChange();
+  }
+
+  selectPrevious() {
+    let index = 0;
+    if (this.selection.length) {
+      let item = this.selection[0];
+      index = this.items.indexOf(item) - 1;
+      if (index < 0) index = 0;
+      this.deselect();
+    }
+    this.select(index);
+    // this.announceChange();
+  }
+
+  announceChange() {
+    var myEvent = new CustomEvent('change', {
+      detail: { selection: this.selection }
+    });
+    this.el.dispatchEvent(myEvent);
   }
 
   onMouseDown(event) {
-    let id = event.target.dataset.id;
-    if (id) {
+    if (event.button == 0) {
+      // console.log(event.target.parentNode);
+      // console.log('event.button', event.button);
+      let id = event.target.dataset.id;
+      if (id) {
+        let item = this.getItemById(id);
+        let index = this.items.indexOf(item);
 
-      if (this.multiple) {
-        let toggle = event.metaKey || event.ctrlKey;
-        if (!toggle) this.deselect();
-        this.select(id, toggle);
+        if (this.multiple) {
+          let toggle = event.metaKey || event.ctrlKey;
+          if (!toggle) this.deselect();
+          this.select(index, toggle);
+        } else {
+          this.deselect();
+          this.select(index);
+        }
       } else {
         this.deselect();
-        this.select(id);
       }
-      // this.select(id);
-
-      var myEvent = new CustomEvent('change', {
-        detail: { selection: this.selection }
-      });
-      this.el.dispatchEvent(myEvent);
-    } else {
-      this.deselect();
-      var myEvent = new CustomEvent('change', {
-        detail: { selection: this.selection }
-      });
-      this.el.dispatchEvent(myEvent);
     }
   }
 
   onKeyDown(event) {
-    console.log(event);
+    if (event.key == 'ArrowLeft') {
+      if (this.type == 'icon-list') {
+        this.selectPrevious();
+      }
+    } else if (event.key == 'ArrowRight') {
+      if (this.type == 'icon-list') {
+        this.selectNext();
+      }
+    } else if (event.key == 'ArrowDown') {
+      event.preventDefault();
+      if (this.type == 'basic-list') {
+        this.selectNext();
+      }
+    } else if (event.key == 'ArrowUp') {
+      event.preventDefault();
+      if (this.type == 'basic-list') {
+        this.selectPrevious();
+      }
+    }
   }
 
   onFocus(event) {
-    console.log('focus');
+    // this.el.style.border = '2px solid red';
+  }
+
+  onBlur(event) {
+    // this.el.style.border = 'initial';
   }
 
   handleEvent(event) {
@@ -1209,6 +1437,8 @@ class List {
       this.onKeyDown(event);
     } else if (event.type == 'focus') {
       this.onFocus(event);
+    } else if (event.type == 'blur') {
+      this.onBlur(event);
     }
   }
 
@@ -1216,7 +1446,7 @@ class List {
 
 module.exports = List;
 
-},{}],11:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 
 class Workspace {
   constructor(params) {

@@ -23,11 +23,22 @@ body, html {
 }
 
 .list {
+  position: relative;
+  overflow: auto;
+  height: 100%;
+  width: 100%;
+  outline: none;
 }
 
-.list-item {
-  line-height: 1.5em;
-  padding-left: 8px;
+.basic-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.basic-list-item {
+  /* line-height: 1.7em; */
+  /* padding-left: 8px; */
+  padding: 6px;
   cursor: default;
 }
 
@@ -35,8 +46,6 @@ body, html {
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
-  height: 100%;
-  width: 100%;
   padding: 4px;
   box-sizing: border-box;
 }
@@ -46,9 +55,10 @@ body, html {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 80px;
-  max-width: 80px;
-  margin: 1px;
+  width: 76px;
+  max-width: 76px;
+  height: 90px;
+  max-height: 90px;
   box-sizing: border-box;
 }
 
@@ -59,6 +69,7 @@ body, html {
   height: 64px;
   max-width: 64px;
   max-height: 64px;
+  padding: 2px;
   align-items: center;
   justify-content: center;
   pointer-events: none;
@@ -70,25 +81,30 @@ body, html {
   height: auto;
   max-width: 100%;
   max-height: 100%;
+  pointer-events: none;
 }
 
 .icon-list-title {
   overflow: hidden;
   text-overflow: ellipsis;
   overflow-wrap: break-word;
-  width: 100%;
-  line-height: 1.1em;
-  max-height: 2.2em;
+  line-height: 1em;
+  padding: 2px 4px 2px 4px;
+  border-radius: 3px;
   text-align: center;
   pointer-events: none;
 }
 
-.list-item.selected {
+.basic-list-item.selected {
   color: white;
   background-color: dodgerblue;
 }
 
 .icon-list-item.selected {
+  /* border: 1px solid dodgerblue; */
+}
+
+.icon-list-item.selected >.icon-list-title {
   color: white;
   background-color: dodgerblue;
 }
@@ -109,8 +125,11 @@ body, html {
 }
 
 .room-list {
-  flex: auto;
-  overflow: auto;
+  width: 100%;
+  height: 100%;
+  /* background-color: green; */
+  /* flex: auto; */
+  /* overflow: auto; */
 }
 
 .container {
@@ -121,7 +140,8 @@ body, html {
 }
 
 .container-title {
-  padding: 4px;
+  /* padding: 4px; */
+  line-height: 2em;
   font-family: sans-serif;
   background-color: rgb(240, 240, 240);
   cursor: default;
@@ -131,7 +151,7 @@ body, html {
 }
 
 .container-content {
-  overflow: auto;
+  /* overflow: auto; */
   background-color: white;
 }
 
@@ -166,10 +186,14 @@ body, html {
   display: block;
 }
 
-.objects {
-  flex: auto;
-  overflow: auto;
-  /* padding: 8px; */
-  /* width: 100%; */
-  /* height: 100%; */
+.room-objects {
+  background-color: white;
+  width: 100%;
+  height: 100%;
+}
+
+.costumes {
+  background-color: white;
+  width: 100%;
+  height: 100%;
 }

@@ -2,8 +2,8 @@ const Container = require('./ui/container');
 const Workspace = require('./ui/workspace');
 const List = require('./ui/list');
 
-const Resource = require('./resource');
-const Scumm = require('./scumm');
+const Resource = require('./scumm/resource');
+// const Scumm = require('./scumm');
 const Bitmap = require('./bitmap');
 
 const INDEX_FILE = 'monkey2.000';
@@ -88,23 +88,25 @@ class App {
 
       ctx.putImageData(imageData, 0, 0);
 
-      this.imageContainer.setSize(width, height);
+      for (var i = 0; i < this.canvasImages.length; i++) {
+        let im = this.canvasImages[i];
+        ctx.drawImage(im.image, im.x, im.y);
+      }
     }
+
+    let scale = 1;
 
     let canvas = this.canvas;
     canvas.title = room.name;
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
 
     ctx = canvas.getContext('2d');
-    // ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(this.offscreen, 0, 0, this.offscreen.width, this.offscreen.height);
+    ctx.drawImage(this.offscreen, 0, 0, this.offscreen.width*scale, this.offscreen.height*scale);
 
-    for (var i = 0; i < this.canvasImages.length; i++) {
-      let im = this.canvasImages[i];
-      ctx.drawImage(im.image, im.x, im.y);
-    }
+    this.imageContainer.setSize(width * scale, height * scale);
   }
 
   createCanvasFromBitmap(bitmap, width, height, transparent) {
@@ -132,14 +134,14 @@ class App {
   }
 
   updateRoomObjects() {
-    this.objects = this.room.getObjects();
-    let objectsEl = this.objectsEl;
+    this.roomObjects = this.room.getObjects();
+    let objectsEl = this.roomObjectsEl;
     while (objectsEl.firstChild) objectsEl.removeChild(objectsEl.firstChild);
 
-    let list = new List({ type: 'icon', multiple: true });
+    let list = new List({ type: 'icon-list', multiple: true });
 
-    for (var i = 0, index = 1; i < this.objects.length; i++) {
-      let ob = this.objects[i];
+    for (var i = 0, index = 1; i < this.roomObjects.length; i++) {
+      let ob = this.roomObjects[i];
 
       if (ob.bitmaps) {
         for (var j = 0; j < ob.bitmaps.length; j++) {
@@ -155,14 +157,14 @@ class App {
       }
     }
 
-    this.objectsList = list;
+    this.roomObjectsList = list;
 
-    this.objectsList.dom().addEventListener('change', (e) => {
+    this.roomObjectsList.dom().addEventListener('change', (e) => {
       this.clearCanvasImages();
       let selection = e.detail.selection;
       for (var i = 0; i < selection.length; i++) {
         let item = selection[i];
-        let ob = this.objects.find(element => element.id == item.data);
+        let ob = this.roomObjects.find(element => element.id == item.data);
         if (ob) {
           this.addImageToCanvas(item.image, ob.x, ob.y);
         }
@@ -170,10 +172,11 @@ class App {
       this.updateRoomImage();
     });
 
-    this.objectsEl.appendChild(list.dom());
+    this.roomObjectsEl.appendChild(list.dom());
   }
 
   setRoom(num) {
+    if (this.roomno == num) return;
     let room = this.resource.getRoom(num);
     if (room) {
       this.room = room;
@@ -204,7 +207,7 @@ class App {
     let roomList = this.resource.getRoomList();
     for (var i = 0; i < roomList.length; i++) {
       let room = roomList[i];
-      this.list.addItem({ id: room.id, title: room.id.toString().padStart(3, '0') + ' ' + room.name });
+      this.roomList.addItem({ id: room.id, title: room.id.toString().padStart(3, '0') + ' ' + room.name });
     }
   }
 
@@ -215,8 +218,8 @@ class App {
     if (this.files[BUNDLE_FILE]) {
       this.resource.addBundle(this.files[BUNDLE_FILE]);
       this.updateRoomList();
-      this.setRoom(6);
-      this.list.select(6);
+      this.setRoom(1);
+      this.roomList.select(0);
     }
   }
 
@@ -230,7 +233,6 @@ class App {
     this.filesToLoad--;
 
     if (this.filesToLoad == 0) {
-      console.log('done');
       this.parseFiles();
     }
   }
@@ -299,8 +301,9 @@ class App {
     let sidebarEl = document.createElement('div');
     sidebarEl.classList.add('side-bar');
 
-    this.list = new List();
-    this.list.dom().addEventListener('change', (e) => {
+    this.roomList = new List();
+    this.roomList.dom().addEventListener('change', (e) => {
+      // console.log('change');
       let selection = e.detail.selection;
       if (selection.length) {
         // let id = e.detail.id;
@@ -311,12 +314,12 @@ class App {
     this.roomListEl = document.createElement('div');
     this.roomListEl.classList.add('room-list');
 
-    this.roomListEl.appendChild(this.list.dom());
+    this.roomListEl.appendChild(this.roomList.dom());
 
     let el = document.createElement('div');
-    el.classList.add('room-list-heading');
-    el.innerHTML = 'Rooms';
-    sidebarEl.appendChild(el);
+    // el.classList.add('room-list-heading');
+    // el.innerHTML = 'Rooms';
+    // sidebarEl.appendChild(el);
 
     sidebarEl.appendChild(this.roomListEl);
 
@@ -339,11 +342,16 @@ class App {
     this.paletteContainer = new Container({ title: 'Palette', content: this.paletteEl, x: 32, y: 280, width: 192, height: 192, status: false });
     this.workspace.add(this.paletteContainer);
 
-    this.objectsEl = document.createElement('div');
-    this.objectsEl.classList.add('objects');
+    this.roomObjectsEl = document.createElement('div');
+    this.roomObjectsEl.classList.add('room-objects');
+    this.roomObjectsContainer = new Container({ title: 'Object Images', content: this.roomObjectsEl, x: 256, y: 280, width: 336, height: 278 });
+    this.workspace.add(this.roomObjectsContainer);
 
-    this.objectsContainer = new Container({ title: 'Objects', content: this.objectsEl, x: 512, y: 32, width: 344, height: 360 });
-    this.workspace.add(this.objectsContainer);
+
+    this.costumesEl = document.createElement('div');
+    this.costumesEl.classList.add('costumes');
+    this.costumesContainer = new Container({ title: 'Costumes', content: this.costumesEl, x: 624, y: 280, width: 336, height: 278 });
+    this.workspace.add(this.costumesContainer);
 
   }
 
